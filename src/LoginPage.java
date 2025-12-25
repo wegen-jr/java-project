@@ -82,8 +82,8 @@ public class LoginPage extends JFrame {
 
         // 5. Database Logic
         String URL = "jdbc:mysql://localhost:3306/HMS";
-        String DBusername = "phpmyadmin";
-        String DBpassword = "wegen@1996";
+        String DBusername = "root";
+        String DBpassword = "abrsh123";
 
         loginBtn.addActionListener(e -> {
             String inputUser = uNameField.getText();
@@ -116,9 +116,8 @@ public class LoginPage extends JFrame {
                                 new receptionist().showDashboard();
                                     break;
                             case "DOCTOR":
-                             //   new DoctorDashboard().setVisible(true);
+                                new Doctor().showDashboard();
                                 break;
-
                             case "PHARMACIST":
                                // new PharmacistDashboard().setVisible(true);
                                 break;
