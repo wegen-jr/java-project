@@ -6,6 +6,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,6 +71,14 @@ public class Doctor extends staffUser {
         return panel;
     }
 
+    // --- TIME-BASED GREETING LOGIC ---
+    private String getTimeGreeting() {
+        int hour = LocalTime.now().getHour();
+        if (hour >= 5 && hour < 12) return "Good Morning";
+        if (hour >= 12 && hour < 17) return "Good Afternoon";
+        return "Good Evening";
+    }
+
     @Override
     void showDashboard() {
         JFrame frame = new JFrame("HMS - Hospital Management System (Doctor)");
@@ -78,7 +87,10 @@ public class Doctor extends staffUser {
 
         Font navFont = new Font("SansSerif", Font.BOLD, 12);
 
-        // Main background panel
+        JPanel cardContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 40, 50));
+        cardContainer.setOpaque(false); // Transparent so we see the stethoscope background
+        cardContainer.setBounds(250, 300, 900, 250);
+
         JPanel mainBackgroundPanel = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -109,17 +121,17 @@ public class Doctor extends staffUser {
         portalHeader.setIconTextGap(10);
         portalPanel.add(portalHeader);
 
-        // --- NAVIGATION ITEMS ---
+        // Navigation Items
         JPanel navDash = createNavItem("Dashboard", "assets/dashboard.png", navFont, this::showDashboard);
-        JPanel navProf = createNavItem("My Profile", "assets/user.png", navFont, this::showProfileWindow);
         JPanel navPat  = createNavItem("My Patients", "assets/hospitalisation.png", navFont, this::showPatientsDashboard);
         JPanel navApp  = createNavItem("Appointments", "assets/medical-appointment.png", navFont, this::showAppointmentsDashboard);
         JPanel navLab  = createNavItem("Send Lab Requests", "assets/observation.png", navFont, this::showLabRequestsDashboard);
         JPanel navLabRes = createNavItem("Lab Results", "assets/Lab Response.png", navFont, this::showLabResultsWindow);
         JPanel navSch  = createNavItem("My Schedule", "assets/calendar.png", navFont, this::showScheduleDashboard);
         JPanel navPres = createNavItem("Prescriptions", "assets/medical-prescription.png", navFont, this::showPrescriptionsDashboard);
+        JPanel navProf = createNavItem("My Profile", "assets/user.png", navFont, this::showProfileWindow);
 
-        // Styled Logout for Sidebar
+        // Styled Logout
         JPanel navLogout = createNavItem("Logout", "assets/logout.png", navFont, () -> {
             int confirm = JOptionPane.showConfirmDialog(null, "Are you sure you want to logout?", "Logout", JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
@@ -128,7 +140,6 @@ public class Doctor extends staffUser {
             }
         });
 
-        // Adding components to the sidebar
         leftPanel.add(portalPanel);
         leftPanel.add(new JSeparator());
         leftPanel.add(Box.createVerticalStrut(2));
@@ -141,26 +152,24 @@ public class Doctor extends staffUser {
         leftPanel.add(navPres);
         leftPanel.add(navProf);
 
-        // --- THIS PART FIXES THE PLACEMENT ---
-        leftPanel.add(Box.createVerticalGlue()); // This pushes everything above it to the top
+        leftPanel.add(Box.createVerticalGlue());
         leftPanel.add(new JSeparator());
-        leftPanel.add(navLogout);               // This puts Logout at the very bottom
+        leftPanel.add(navLogout);
         leftPanel.add(Box.createVerticalStrut(10));
 
         mainBackgroundPanel.add(leftPanel, BorderLayout.WEST);
 
-        // Right side Welcome area (Cleaner without the floating logout button)
         loadDoctorData();
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.setOpaque(false);
 
-        JLabel welcomeLabel = new JLabel("Welcome, Dr. " + (fullName != null ? fullName : "Doctor") + "!", SwingConstants.CENTER);
-        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 42)); // Slightly bigger font
+        // Dynamic Greeting
+        String greeting = getTimeGreeting();
+        JLabel welcomeLabel = new JLabel(greeting + ", Dr. " + (fullName != null ? fullName : "Doctor") + "!", SwingConstants.CENTER);
+        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 42));
         welcomeLabel.setForeground(new Color(2, 48, 71));
 
-        // Add shadow effect or padding if you want, but this keeps it centered perfectly
         rightPanel.add(welcomeLabel, BorderLayout.CENTER);
-
         mainBackgroundPanel.add(rightPanel, BorderLayout.CENTER);
         frame.add(mainBackgroundPanel);
         frame.setVisible(true);
@@ -185,243 +194,835 @@ public class Doctor extends staffUser {
         }
     }
 
-    // --- NEW PROFILE WINDOW ---
     void showProfileWindow() {
-        JFrame profFrame = new JFrame("My Profile");
-        profFrame.setSize(400, 350);
+        JFrame profFrame = new JFrame("Medical Practitioner Profile");
+        profFrame.setSize(450, 600);
         profFrame.setLocationRelativeTo(null);
+        profFrame.setLayout(new BorderLayout());
 
-        JPanel card = new JPanel(new GridLayout(5, 2, 10, 20));
-        card.setBorder(new EmptyBorder(30, 30, 30, 30));
+        // --- 1. Top Identity Card ---
+        JPanel headerCard = new JPanel();
+        headerCard.setBackground(new Color(2, 48, 71));
+        headerCard.setPreferredSize(new Dimension(450, 190));
+        headerCard.setLayout(null);
 
-        card.add(new JLabel("Doctor ID:"));
-        card.add(new JLabel(doctorId));
-        card.add(new JLabel("Full Name:"));
-        card.add(new JLabel(fullName));
-        card.add(new JLabel("Specialty:"));
-        card.add(new JLabel(specialization));
-        card.add(new JLabel("Contact:"));
-        card.add(new JLabel(contactNumber));
-        card.add(new JLabel("Email:"));
-        card.add(new JLabel(email));
+        JLabel photoLabel = new JLabel("", SwingConstants.CENTER);
+        photoLabel.setBounds(180, 25, 90, 90);
 
-        profFrame.add(card);
+        try {
+            ImageIcon rawIcon = new ImageIcon("assets/user.png");
+            Image img = rawIcon.getImage();
+            java.awt.image.BufferedImage masked = new java.awt.image.BufferedImage(90, 90, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2d = masked.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.fillOval(0, 0, 90, 90);
+            g2d.setComposite(AlphaComposite.SrcIn);
+            g2d.drawImage(img, 0, 0, 90, 90, null);
+            g2d.dispose();
+            photoLabel.setIcon(new ImageIcon(masked));
+        } catch (Exception e) {
+            photoLabel.setIcon(new ImageIcon(new java.awt.image.BufferedImage(90, 90, java.awt.image.BufferedImage.TYPE_INT_ARGB) {{
+                Graphics2D g = createGraphics();
+                g.setColor(Color.LIGHT_GRAY);
+                g.fillOval(0, 0, 90, 90);
+                g.dispose();
+            }}));
+        }
+        headerCard.add(photoLabel);
+
+        JLabel nameLabel = new JLabel("Dr. " + (fullName != null ? fullName : "Practitioner"), SwingConstants.CENTER);
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        nameLabel.setForeground(Color.WHITE);
+        nameLabel.setBounds(0, 125, 450, 30);
+        headerCard.add(nameLabel);
+
+        // --- 2. Scrollable Body ---
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBackground(Color.WHITE);
+        body.setBorder(new EmptyBorder(20, 40, 20, 40));
+
+        addProfileRow(body, "STAFF ID", doctorId);
+        addProfileRow(body, "SPECIALIZATION", specialization);
+        addProfileRow(body, "CONTACT NUMBER", contactNumber);
+        addProfileRow(body, "EMAIL ADDRESS", email);
+
+        JScrollPane scrollPane = new JScrollPane(body);
+        scrollPane.setBorder(null);
+
+        // --- 3. Bottom Action Panel (NAV-STYLE BUTTON) ---
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 15));
+        footer.setBackground(Color.WHITE);
+
+        // Creating a panel that behaves like your Nav Items
+        Color normalColor = new Color(2, 48, 71);
+        Color hoverColor = new Color(6, 75, 110);
+
+        JPanel closeBtnNav = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+        closeBtnNav.setBackground(normalColor);
+        closeBtnNav.setPreferredSize(new Dimension(200, 40));
+        closeBtnNav.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel closeLabel = new JLabel("CLOSE PROFILE");
+        closeLabel.setForeground(Color.WHITE);
+        closeLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
+        closeBtnNav.add(closeLabel);
+
+        // Apply the same MouseListener logic you used in createNavItem
+        MouseAdapter btnListener = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                profFrame.dispose();
+            }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                closeBtnNav.setBackground(hoverColor);
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                closeBtnNav.setBackground(normalColor);
+            }
+        };
+
+        closeBtnNav.addMouseListener(btnListener);
+        closeLabel.addMouseListener(btnListener); // Ensure clicking text also works
+
+        footer.add(closeBtnNav);
+
+        profFrame.add(headerCard, BorderLayout.NORTH);
+        profFrame.add(scrollPane, BorderLayout.CENTER);
+        profFrame.add(footer, BorderLayout.SOUTH);
+
         profFrame.setVisible(true);
     }
 
+    // Keep the helper method the same
+    private void addProfileRow(JPanel parent, String label, String value) {
+        JPanel row = new JPanel(new BorderLayout());
+        row.setOpaque(false);
+        row.setMaximumSize(new Dimension(400, 60));
+        row.setBorder(new EmptyBorder(10, 0, 10, 0));
+
+        JLabel lbl = new JLabel(label);
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        lbl.setForeground(new Color(120, 130, 140));
+
+        JLabel val = new JLabel(value != null ? value : "Not Set");
+        val.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        val.setForeground(new Color(50, 50, 50));
+
+        row.add(lbl, BorderLayout.NORTH);
+        row.add(val, BorderLayout.CENTER);
+        row.add(new JSeparator(), BorderLayout.SOUTH);
+
+        parent.add(row);
+    }
+
     void showLabResultsWindow() {
-        JFrame resultsFrame = new JFrame("Lab Test Results - Dr. " + fullName);
-        resultsFrame.setSize(950, 500);
+        JFrame resultsFrame = new JFrame("Lab Test Results - Dr. " + (fullName != null ? fullName : ""));
+        resultsFrame.setSize(1000, 600);
         resultsFrame.setLocationRelativeTo(null);
-        resultsFrame.setLayout(new BorderLayout(10, 10));
+        resultsFrame.getContentPane().setBackground(Color.WHITE);
+        resultsFrame.setLayout(new BorderLayout(0, 0));
 
-        // Table Setup
-        // Added "Status" column so you can see if it is still 'Pending'
-        String[] columns = {"ID", "Patient Name", "Test Type", "Status", "Lab Response/Notes", "Date"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0);
+        // --- Header Panel ---
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(new Color(2, 48, 71));
+        headerPanel.setPreferredSize(new Dimension(1000, 70));
+        headerPanel.setBorder(new EmptyBorder(0, 20, 0, 20));
 
-        // SQL Query: Removed the "Completed" filter so you can see EVERYTHING
-        String sql = "SELECT lr.request_id, p.full_name, lr.test_type, lr.status, " +
-                "lr.result_details, lr.notes_from_doctor, lr.request_date " +
-                "FROM lab_requests lr " +
-                "JOIN patients p ON lr.patient_id = p.patient_id " +
-                "WHERE lr.doctor_id = ? " +
-                "ORDER BY lr.request_date DESC";
+        JLabel titleLabel = new JLabel("Laboratory Reports History");
+        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
+        titleLabel.setForeground(Color.WHITE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+
+        JLabel infoLabel = new JLabel("Viewing all requested tests and Lab Technician responses");
+        infoLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        infoLabel.setForeground(new Color(200, 200, 200));
+        headerPanel.add(infoLabel, BorderLayout.SOUTH);
+
+        // --- Table Design ---
+        String[] columns = {"Request ID", "Patient Name", "Test Type", "Status", "Lab Response", "Date"};
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+
+        // SQL Logic
+        String sql = "SELECT lr.request_id, p.full_name, lr.test_type, lr.status, lr.result_details, lr.request_date " +
+                "FROM lab_requests lr JOIN patients p ON lr.patient_id = p.patient_id WHERE lr.doctor_id = ?";
 
         try (Connection con = DriverManager.getConnection(URL, DB_USERNAME, DB_PASSWORD);
              PreparedStatement pst = con.prepareStatement(sql)) {
-
             pst.setString(1, this.doctorId);
             ResultSet rs = pst.executeQuery();
-
             while (rs.next()) {
-                // Logic: If the lab hasn't replied yet, show the Doctor's original notes
-                String response = rs.getString("result_details");
-                if (response == null || response.isEmpty()) {
-                    response = "WAITING: " + rs.getString("notes_from_doctor");
-                }
-
                 model.addRow(new Object[]{
-                        rs.getInt("request_id"),
-                        rs.getString("full_name"),
-                        rs.getString("test_type"),
-                        rs.getString("status"),
-                        response,
-                        rs.getTimestamp("request_date")
+                        rs.getInt(1),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getString(4),
+                        rs.getString(5) == null ? "Pending..." : rs.getString(5),
+                        rs.getTimestamp(6)
                 });
             }
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(resultsFrame, "Error loading results: " + e.getMessage());
-        }
+        } catch (SQLException e) { e.printStackTrace(); }
 
         JTable table = new JTable(model);
-        table.setRowHeight(35);
+
+        // Modern Table Styling
+        table.setRowHeight(40);
+        table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.setGridColor(new Color(230, 230, 230));
+        table.setSelectionBackground(new Color(240, 244, 247));
+        table.setSelectionForeground(Color.BLACK);
+        table.setShowVerticalLines(false);
+
+        // Header Styling
         table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
-        table.getTableHeader().setBackground(new Color(2, 48, 71));
-        table.getTableHeader().setForeground(Color.WHITE);
+        table.getTableHeader().setBackground(new Color(245, 247, 249));
+        table.getTableHeader().setForeground(new Color(2, 48, 71));
+        table.getTableHeader().setPreferredSize(new Dimension(0, 40));
+        table.getTableHeader().setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, new Color(2, 48, 71)));
 
-        resultsFrame.add(new JScrollPane(table), BorderLayout.CENTER);
+        // Set specific column widths
+        table.getColumnModel().getColumn(0).setPreferredWidth(80);
+        table.getColumnModel().getColumn(2).setPreferredWidth(150);
+        table.getColumnModel().getColumn(4).setPreferredWidth(300);
 
-        // --- REFRESH BUTTON AREA ---
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton refreshBtn = new JButton("Refresh Data");
-        JButton closeBtn = new JButton("Close");
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        scrollPane.getViewport().setBackground(Color.WHITE);
 
-        refreshBtn.addActionListener(e -> {
-            resultsFrame.dispose();
-            showLabResultsWindow();
-        });
+        resultsFrame.add(headerPanel, BorderLayout.NORTH);
+        resultsFrame.add(scrollPane, BorderLayout.CENTER);
 
-        closeBtn.addActionListener(e -> resultsFrame.dispose());
+        // --- Footer with Nav-Style Dismiss Button ---
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 15));
+        footer.setBackground(Color.WHITE);
 
-        bottomPanel.add(refreshBtn);
-        bottomPanel.add(closeBtn);
-        resultsFrame.add(bottomPanel, BorderLayout.SOUTH);
+        Color navNormal = new Color(2, 48, 71);
+        Color navHover = new Color(6, 75, 110);
+
+        JPanel dismissBtnNav = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+        dismissBtnNav.setBackground(navNormal);
+        dismissBtnNav.setPreferredSize(new Dimension(150, 40));
+        dismissBtnNav.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel dismissLabel = new JLabel("DISMISS");
+        dismissLabel.setForeground(Color.WHITE);
+        dismissLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
+        dismissBtnNav.add(dismissLabel);
+
+        MouseAdapter navListener = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                resultsFrame.dispose();
+            }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                dismissBtnNav.setBackground(navHover);
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                dismissBtnNav.setBackground(navNormal);
+            }
+        };
+
+        dismissBtnNav.addMouseListener(navListener);
+        dismissLabel.addMouseListener(navListener);
+
+        footer.add(dismissBtnNav);
+        resultsFrame.add(footer, BorderLayout.SOUTH);
 
         resultsFrame.setVisible(true);
     }
 
     void showLabRequestsDashboard() {
-        JFrame labFrame = new JFrame("New Lab Request");
-        labFrame.setSize(500, 450);
+        JFrame labFrame = new JFrame("Laboratory Test Request");
+        labFrame.setSize(500, 650);
         labFrame.setLocationRelativeTo(null);
-        labFrame.setLayout(new BorderLayout(15, 15));
 
-        // Form Panel
-        JPanel form = new JPanel(new GridLayout(5, 2, 10, 15));
-        form.setBorder(new EmptyBorder(20, 20, 20, 20));
+        // Main container with a light grey/blue background
+        JPanel container = new JPanel(new BorderLayout());
+        container.setBackground(new Color(240, 244, 247));
+        container.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // 1. Patient Selection (Fetches from your existing getMyPatients method)
+        // The "Card"
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220, 220, 220), 1),
+                new EmptyBorder(25, 30, 25, 30)
+        ));
+
+        // Heading
+        JLabel title = new JLabel("Lab Order Form");
+        title.setFont(new Font("SansSerif", Font.BOLD, 22));
+        title.setForeground(new Color(2, 48, 71));
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        Font labelFont = new Font("SansSerif", Font.BOLD, 12);
+        Color labelColor = new Color(100, 100, 100);
+
+        // --- Form Fields ---
+        JLabel l1 = new JLabel("PATIENT NAME");
+        l1.setFont(labelFont); l1.setForeground(labelColor);
         JComboBox<String> pCombo = new JComboBox<>();
-        for (Patient p : getMyPatients()) {
-            pCombo.addItem(p.getPatientId() + " - " + p.getName());
-        }
+        for (Patient p : getMyPatients()) pCombo.addItem(p.getPatientId() + " - " + p.getName());
+        pCombo.setMaximumSize(new Dimension(400, 35));
 
-        // 2. Test Selection
+        JLabel l2 = new JLabel("TEST CATEGORY");
+        l2.setFont(labelFont); l2.setForeground(labelColor);
         String[] tests = {"Complete Blood Count", "X-Ray Chest", "MRI Scan", "Urinalysis", "Glucose Test"};
         JComboBox<String> testCombo = new JComboBox<>(tests);
+        testCombo.setMaximumSize(new Dimension(400, 35));
 
-        // 3. Priority Selection
+        JLabel l3 = new JLabel("PRIORITY");
+        l3.setFont(labelFont); l3.setForeground(labelColor);
         String[] priorities = {"Normal", "Urgent", "Emergency"};
         JComboBox<String> priorityCombo = new JComboBox<>(priorities);
+        priorityCombo.setMaximumSize(new Dimension(400, 35));
 
-        // 4. Doctor's Notes
-        JTextField notesField = new JTextField();
+        JLabel l4 = new JLabel("INSTRUCTIONS");
+        l4.setFont(labelFont); l4.setForeground(labelColor);
+        JTextArea notesArea = new JTextArea(4, 20);
+        notesArea.setLineWrap(true);
+        notesArea.setWrapStyleWord(true);
+        notesArea.setBackground(new Color(250, 250, 250));
+        JScrollPane notesScroll = new JScrollPane(notesArea);
+        notesScroll.setMaximumSize(new Dimension(400, 80));
 
-        form.add(new JLabel("Select Patient:")); form.add(pCombo);
-        form.add(new JLabel("Test Type:")); form.add(testCombo);
-        form.add(new JLabel("Priority Level:")); form.add(priorityCombo);
-        form.add(new JLabel("Instructions:")); form.add(notesField);
+        // Adding components to card
+        card.add(title); card.add(Box.createVerticalStrut(20));
+        card.add(l1); card.add(Box.createVerticalStrut(5));
+        card.add(pCombo); card.add(Box.createVerticalStrut(15));
+        card.add(l2); card.add(Box.createVerticalStrut(5));
+        card.add(testCombo); card.add(Box.createVerticalStrut(15));
+        card.add(l3); card.add(Box.createVerticalStrut(5));
+        card.add(priorityCombo); card.add(Box.createVerticalStrut(15));
+        card.add(l4); card.add(Box.createVerticalStrut(5));
+        card.add(notesScroll); card.add(Box.createVerticalStrut(30));
 
-        // 5. Save Button
-        JButton sendBtn = new JButton("Submit Request to Lab");
-        sendBtn.setBackground(new Color(2, 48, 71));
-        sendBtn.setForeground(Color.WHITE);
-        sendBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        // --- NAV-STYLE SUBMIT BUTTON ---
+        Color navNormal = new Color(2, 48, 71);
+        Color navHover = new Color(6, 75, 110);
 
-        sendBtn.addActionListener(e -> {
-            if (pCombo.getSelectedItem() == null) {
-                JOptionPane.showMessageDialog(labFrame, "No patient selected!");
-                return;
+        JPanel sendBtnNav = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 12));
+        sendBtnNav.setBackground(navNormal);
+        sendBtnNav.setMaximumSize(new Dimension(400, 45));
+        sendBtnNav.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel btnLabel = new JLabel("PLACE ORDER");
+        btnLabel.setForeground(Color.WHITE);
+        btnLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+        sendBtnNav.add(btnLabel);
+
+        // Button Interaction & SQL logic
+        MouseAdapter navAction = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                String selected = (String) pCombo.getSelectedItem();
+                if (selected == null) return;
+                String pId = selected.split(" - ")[0];
+
+                String sql = "INSERT INTO lab_requests (doctor_id, patient_id, test_type, priority, notes_from_doctor, status) VALUES (?, ?, ?, ?, ?, 'Pending')";
+                try (Connection con = DriverManager.getConnection(URL, DB_USERNAME, DB_PASSWORD);
+                     PreparedStatement pst = con.prepareStatement(sql)) {
+                    pst.setString(1, doctorId);
+                    pst.setString(2, pId);
+                    pst.setString(3, testCombo.getSelectedItem().toString());
+                    pst.setString(4, priorityCombo.getSelectedItem().toString());
+                    pst.setString(5, notesArea.getText());
+                    pst.executeUpdate();
+                    JOptionPane.showMessageDialog(labFrame, "Lab Order Successfully Placed.");
+                    labFrame.dispose();
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(labFrame, "Error: " + ex.getMessage());
+                }
             }
+            @Override
+            public void mouseEntered(MouseEvent e) { sendBtnNav.setBackground(navHover); }
+            @Override
+            public void mouseExited(MouseEvent e) { sendBtnNav.setBackground(navNormal); }
+        };
 
-            String pId = pCombo.getSelectedItem().toString().split(" - ")[0];
-            String test = testCombo.getSelectedItem().toString();
-            String priority = priorityCombo.getSelectedItem().toString();
-            String notes = notesField.getText();
+        sendBtnNav.addMouseListener(navAction);
+        btnLabel.addMouseListener(navAction); // Ensure clicking label also works
 
-            // SQL INSERT to lab_requests
-            String sql = "INSERT INTO lab_requests (doctor_id, patient_id, test_type, priority, notes_from_doctor, status) VALUES (?, ?, ?, ?, ?, 'Pending')";
-
-            try (Connection con = DriverManager.getConnection(URL, DB_USERNAME, DB_PASSWORD);
-                 PreparedStatement pst = con.prepareStatement(sql)) {
-
-                pst.setString(1, this.doctorId);
-                pst.setString(2, pId);
-                pst.setString(3, test);
-                pst.setString(4, priority);
-                pst.setString(5, notes);
-
-                pst.executeUpdate();
-                JOptionPane.showMessageDialog(labFrame, "Request sent to Lab successfully!");
-                labFrame.dispose();
-
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(labFrame, "Error: " + ex.getMessage());
-            }
-        });
-
-        labFrame.add(form, BorderLayout.CENTER);
-        labFrame.add(sendBtn, BorderLayout.SOUTH);
+        card.add(sendBtnNav);
+        container.add(card, BorderLayout.CENTER);
+        labFrame.add(container);
         labFrame.setVisible(true);
     }
 
-    // --- YOUR ORIGINAL DASHBOARD METHODS ---
     void showPatientsDashboard() {
-        JFrame patientsFrame = new JFrame("My Patients");
-        patientsFrame.setSize(800, 600);
+        JFrame patientsFrame = new JFrame("Patient Directory - HMS");
+        patientsFrame.setSize(1000, 650);
         patientsFrame.setLocationRelativeTo(null);
+        patientsFrame.getContentPane().setBackground(Color.WHITE);
+        patientsFrame.setLayout(new BorderLayout(0, 0));
+
+        // --- Header Panel ---
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(new Color(2, 48, 71));
+        headerPanel.setPreferredSize(new Dimension(1000, 80));
+        headerPanel.setBorder(new EmptyBorder(15, 25, 15, 25));
+
+        JLabel titleLabel = new JLabel("My Assigned Patients");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        titleLabel.setForeground(Color.WHITE);
+
+        JLabel subtitleLabel = new JLabel("Total Patients: " + getMyPatients().size());
+        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        subtitleLabel.setForeground(new Color(200, 215, 225));
+
+        JPanel textContainer = new JPanel(new GridLayout(2, 1));
+        textContainer.setOpaque(false);
+        textContainer.add(titleLabel);
+        textContainer.add(subtitleLabel);
+        headerPanel.add(textContainer, BorderLayout.WEST);
+
+        // --- Table Design ---
+        String[] columns = {"Patient ID", "Full Name", "Age", "Gender", "Last Visit", "Status"};
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+
         List<Patient> patients = getMyPatients();
-        String[] columns = {"Patient ID", "Name", "Age", "Gender", "Last Visit", "Status"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0);
         for (Patient p : patients) {
             model.addRow(new Object[]{p.getPatientId(), p.getName(), p.getAge(), p.getGender(), p.getLastVisit(), p.getStatus()});
         }
-        patientsFrame.add(new JScrollPane(new JTable(model)));
+
+        JTable table = new JTable(model);
+        table.setRowHeight(45);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        table.setGridColor(new Color(235, 235, 235));
+        table.setSelectionBackground(new Color(230, 240, 250));
+        table.setSelectionForeground(new Color(2, 48, 71));
+        table.setShowVerticalLines(false);
+
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        table.getTableHeader().setBackground(new Color(245, 248, 250));
+        table.getTableHeader().setForeground(new Color(2, 48, 71));
+        table.getTableHeader().setPreferredSize(new Dimension(0, 45));
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
+        scrollPane.getViewport().setBackground(Color.WHITE);
+
+        // --- Footer Action Bar (NAV-STYLE BUTTONS) ---
+        JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 15));
+        footerPanel.setBackground(Color.WHITE);
+
+        Color navNormal = new Color(2, 48, 71);
+        Color navHover = new Color(6, 75, 110);
+        Color printNormal = new Color(100, 110, 120);
+        Color printHover = new Color(130, 140, 150);
+
+        // 1. Print List Button
+        JPanel printBtnNav = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+        printBtnNav.setBackground(printNormal);
+        printBtnNav.setPreferredSize(new Dimension(130, 40));
+        printBtnNav.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel printLabel = new JLabel("PRINT LIST");
+        printLabel.setForeground(Color.WHITE);
+        printLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        printBtnNav.add(printLabel);
+
+        // 2. Close Directory Button
+        JPanel closeBtnNav = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+        closeBtnNav.setBackground(navNormal);
+        closeBtnNav.setPreferredSize(new Dimension(160, 40));
+        closeBtnNav.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel closeLabel = new JLabel("CLOSE DIRECTORY");
+        closeLabel.setForeground(Color.WHITE);
+        closeLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        closeBtnNav.add(closeLabel);
+
+        // Mouse Logic for Print
+        printBtnNav.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { printBtnNav.setBackground(printHover); }
+            @Override public void mouseExited(MouseEvent e) { printBtnNav.setBackground(printNormal); }
+            @Override public void mouseClicked(MouseEvent e) { /* Add print logic here */ }
+        });
+
+        // Mouse Logic for Close
+        MouseAdapter closeAction = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) { patientsFrame.dispose(); }
+            @Override
+            public void mouseEntered(MouseEvent e) { closeBtnNav.setBackground(navHover); }
+            @Override
+            public void mouseExited(MouseEvent e) { closeBtnNav.setBackground(navNormal); }
+        };
+        closeBtnNav.addMouseListener(closeAction);
+        closeLabel.addMouseListener(closeAction);
+
+        footerPanel.add(printBtnNav);
+        footerPanel.add(closeBtnNav);
+
+        patientsFrame.add(headerPanel, BorderLayout.NORTH);
+        patientsFrame.add(scrollPane, BorderLayout.CENTER);
+        patientsFrame.add(footerPanel, BorderLayout.SOUTH);
+
         patientsFrame.setVisible(true);
     }
 
     void showAppointmentsDashboard() {
-        JFrame appointmentsFrame = new JFrame("Today's Appointments");
-        appointmentsFrame.setSize(900, 600);
-        appointmentsFrame.setLocationRelativeTo(null);
+        JFrame appFrame = new JFrame("Daily Schedule - Today's Appointments");
+        appFrame.setSize(1000, 650);
+        appFrame.setLocationRelativeTo(null);
+        appFrame.getContentPane().setBackground(Color.WHITE);
+        appFrame.setLayout(new BorderLayout(0, 0));
+
+        // --- 1. Header Panel ---
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(new Color(2, 48, 71));
+        headerPanel.setPreferredSize(new Dimension(1000, 80));
+        headerPanel.setBorder(new EmptyBorder(15, 25, 15, 25));
+
+        JLabel titleLabel = new JLabel("Appointment Schedule");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        titleLabel.setForeground(Color.WHITE);
+
+        JLabel dateLabel = new JLabel("Today: " + java.time.LocalDate.now());
+        dateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        dateLabel.setForeground(new Color(200, 215, 225));
+
+        JPanel textContainer = new JPanel(new GridLayout(2, 1));
+        textContainer.setOpaque(false);
+        textContainer.add(titleLabel);
+        textContainer.add(dateLabel);
+        headerPanel.add(textContainer, BorderLayout.WEST);
+
+        // --- 2. Table Design ---
+        String[] columns = {"Time Slot", "Patient Name", "Reason for Visit", "Status"};
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+
+        // Keep your exact logic
         List<Appointment> appointments = getTodaysAppointments();
-        String[] columns = {"Time", "Patient Name", "Reason", "Status"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0);
         for (Appointment app : appointments) {
             model.addRow(new Object[]{app.getTime(), app.getPatientName(), app.getReason(), app.getStatus()});
         }
-        appointmentsFrame.add(new JScrollPane(new JTable(model)), BorderLayout.CENTER);
-        appointmentsFrame.setVisible(true);
+
+        JTable table = new JTable(model);
+        table.setRowHeight(45);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        table.setGridColor(new Color(235, 235, 235));
+        table.setSelectionBackground(new Color(230, 240, 250));
+        table.setSelectionForeground(new Color(2, 48, 71));
+        table.setShowVerticalLines(false);
+
+        // Header Styling
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        table.getTableHeader().setBackground(new Color(245, 248, 250));
+        table.getTableHeader().setForeground(new Color(2, 48, 71));
+        table.getTableHeader().setPreferredSize(new Dimension(0, 45));
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
+        scrollPane.getViewport().setBackground(Color.WHITE);
+
+        // --- 3. Footer Action Panel (Nav-Click Style Button) ---
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 25, 15));
+        footer.setBackground(Color.WHITE);
+
+        // Sidebar Style Button
+        Color normalColor = new Color(2, 48, 71);
+        Color hoverColor = new Color(6, 75, 110);
+
+        JPanel closeBtnNav = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+        closeBtnNav.setBackground(normalColor);
+        closeBtnNav.setPreferredSize(new Dimension(180, 40));
+        closeBtnNav.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel closeLabel = new JLabel("CLOSE SCHEDULE");
+        closeLabel.setForeground(Color.WHITE);
+        closeLabel.setFont(new Font("SansSerif", Font.BOLD, 11));
+        closeBtnNav.add(closeLabel);
+
+        MouseAdapter navStyleAction = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) { appFrame.dispose(); }
+            @Override
+            public void mouseEntered(MouseEvent e) { closeBtnNav.setBackground(hoverColor); }
+            @Override
+            public void mouseExited(MouseEvent e) { closeBtnNav.setBackground(normalColor); }
+        };
+
+        closeBtnNav.addMouseListener(navStyleAction);
+        closeLabel.addMouseListener(navStyleAction);
+
+        footer.add(closeBtnNav);
+
+        appFrame.add(headerPanel, BorderLayout.NORTH);
+        appFrame.add(scrollPane, BorderLayout.CENTER);
+        appFrame.add(footer, BorderLayout.SOUTH);
+
+        appFrame.setVisible(true);
     }
 
     void showScheduleDashboard() {
-        JFrame scheduleFrame = new JFrame("My Schedule");
-        scheduleFrame.setSize(800, 500);
+        JFrame scheduleFrame = new JFrame("Clinical Schedule - Dr. " + (fullName != null ? fullName : ""));
+        scheduleFrame.setSize(950, 600);
         scheduleFrame.setLocationRelativeTo(null);
-        String[] columns = {"Time Slot", "Patient", "Status", "Notes"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0);
+        scheduleFrame.getContentPane().setBackground(Color.WHITE);
+        scheduleFrame.setLayout(new BorderLayout(0, 0));
+
+        // --- 1. Header Panel ---
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(new Color(2, 48, 71)); // Dark Navy
+        headerPanel.setPreferredSize(new Dimension(950, 80));
+        headerPanel.setBorder(new EmptyBorder(15, 25, 15, 25));
+
+        JLabel titleLabel = new JLabel("Full Clinical Schedule");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        titleLabel.setForeground(Color.WHITE);
+
+        JLabel subtitleLabel = new JLabel("Manage your patient timeline and clinical notes");
+        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitleLabel.setForeground(new Color(200, 215, 225));
+
+        JPanel textContainer = new JPanel(new GridLayout(2, 1));
+        textContainer.setOpaque(false);
+        textContainer.add(titleLabel);
+        textContainer.add(subtitleLabel);
+        headerPanel.add(textContainer, BorderLayout.WEST);
+
+        // --- 2. Table and Data ---
+        String[] columns = {"Time Slot", "Patient Name", "Status", "Clinical Notes"};
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+
         try (Connection con = DriverManager.getConnection(URL, DB_USERNAME, DB_PASSWORD)) {
-            String query = "SELECT a.appointment_time, p.full_name, a.status, a.notes FROM appointments a JOIN patients p ON a.patient_id = p.patient_id WHERE a.doctor_id = ? ORDER BY a.appointment_time";
+            String query = "SELECT a.appointment_time, p.full_name, a.status, a.notes " +
+                    "FROM appointments a JOIN patients p ON a.patient_id = p.patient_id " +
+                    "WHERE a.doctor_id = ? ORDER BY a.appointment_time";
             PreparedStatement pst = con.prepareStatement(query);
             pst.setString(1, doctorId);
             ResultSet rs = pst.executeQuery();
             while (rs.next()) {
-                model.addRow(new Object[]{rs.getString("appointment_time"), rs.getString("full_name"), rs.getString("status"), rs.getString("notes")});
+                model.addRow(new Object[]{
+                        rs.getString(1),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getString(4) == null ? "No notes added" : rs.getString(4)
+                });
             }
-        } catch (SQLException e) { e.printStackTrace(); }
-        scheduleFrame.add(new JScrollPane(new JTable(model)));
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Database Error: " + e.getMessage());
+        }
+
+        JTable table = new JTable(model);
+        table.setRowHeight(45);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        table.setShowVerticalLines(false);
+        table.setGridColor(new Color(240, 240, 240));
+        table.setSelectionBackground(new Color(230, 240, 250));
+
+        // Styling Header
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        table.getTableHeader().setBackground(new Color(245, 248, 250));
+        table.getTableHeader().setForeground(new Color(2, 48, 71));
+        table.getTableHeader().setPreferredSize(new Dimension(0, 45));
+
+        // Column Width Adjustments
+        table.getColumnModel().getColumn(0).setPreferredWidth(120);
+        table.getColumnModel().getColumn(1).setPreferredWidth(180);
+        table.getColumnModel().getColumn(3).setPreferredWidth(350); // Give more space to notes
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
+        scrollPane.getViewport().setBackground(Color.WHITE);
+
+        // --- 3. Footer Action Panel (Nav-Click Style Button) ---
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 25, 15));
+        footer.setBackground(Color.WHITE);
+
+        // Creating Nav-Style close button
+        Color normalColor = new Color(2, 48, 71);
+        Color hoverColor = new Color(6, 75, 110);
+
+        JPanel closeBtnNav = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+        closeBtnNav.setBackground(normalColor);
+        closeBtnNav.setPreferredSize(new Dimension(180, 40));
+        closeBtnNav.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel closeLabel = new JLabel("BACK TO PORTAL");
+        closeLabel.setForeground(Color.WHITE);
+        closeLabel.setFont(new Font("SansSerif", Font.BOLD, 11));
+        closeBtnNav.add(closeLabel);
+
+        MouseAdapter navAction = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) { scheduleFrame.dispose(); }
+            @Override
+            public void mouseEntered(MouseEvent e) { closeBtnNav.setBackground(hoverColor); }
+            @Override
+            public void mouseExited(MouseEvent e) { closeBtnNav.setBackground(normalColor); }
+        };
+
+        closeBtnNav.addMouseListener(navAction);
+        closeLabel.addMouseListener(navAction);
+
+        footer.add(closeBtnNav);
+
+        scheduleFrame.add(headerPanel, BorderLayout.NORTH);
+        scheduleFrame.add(scrollPane, BorderLayout.CENTER);
+        scheduleFrame.add(footer, BorderLayout.SOUTH);
+
         scheduleFrame.setVisible(true);
     }
 
+    // RESTORED PRESCRIPTION LOGIC MATCHING YOUR TABLE
     void showPrescriptionsDashboard() {
-        JFrame prescriptionsFrame = new JFrame("Write Prescription");
-        prescriptionsFrame.setSize(600, 600);
-        prescriptionsFrame.setLocationRelativeTo(null);
-        prescriptionsFrame.setLayout(new BorderLayout());
+        JFrame prescFrame = new JFrame("Medical Prescription Pad");
+        prescFrame.setSize(600, 700);
+        prescFrame.setLocationRelativeTo(null);
+        prescFrame.getContentPane().setBackground(new Color(240, 244, 247));
+        prescFrame.setLayout(new BorderLayout());
+
+        // --- 1. Header Section ---
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(new Color(2, 48, 71));
+        headerPanel.setPreferredSize(new Dimension(600, 80));
+        headerPanel.setBorder(new EmptyBorder(15, 25, 15, 25));
+
+        JLabel titleLabel = new JLabel("New Prescription");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        titleLabel.setForeground(Color.WHITE);
+
+        JLabel docLabel = new JLabel("Prescribing Physician: Dr. " + (fullName != null ? fullName : ""));
+        docLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+        docLabel.setForeground(new Color(200, 215, 225));
+
+        JPanel textContainer = new JPanel(new GridLayout(2, 1));
+        textContainer.setOpaque(false);
+        textContainer.add(titleLabel);
+        textContainer.add(docLabel);
+        headerPanel.add(textContainer, BorderLayout.WEST);
+
+        // --- 2. Patient Selector Bar ---
+        JPanel selectorPanel = new JPanel(new BorderLayout());
+        selectorPanel.setBackground(Color.WHITE);
+        selectorPanel.setBorder(new EmptyBorder(15, 25, 15, 25));
+
+        JLabel pLabel = new JLabel("Select Patient:  ");
+        pLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
         JComboBox<String> pDropdown = new JComboBox<>();
-        for (Patient p : getMyPatients()) pDropdown.addItem(p.getPatientId() + " - " + p.getName());
-        JTextArea area = new JTextArea("DATE: " + LocalDate.now() + "\n\nMEDICATION:");
-        JButton save = new JButton("Save Prescription");
-        save.addActionListener(e -> {
-            // Save logic here
-            JOptionPane.showMessageDialog(prescriptionsFrame, "Saved!");
-            prescriptionsFrame.dispose();
+        pDropdown.setPreferredSize(new Dimension(300, 35));
+        for (Patient p : getMyPatients()) {
+            pDropdown.addItem(p.getPatientId() + " - " + p.getName());
+        }
+        selectorPanel.add(pLabel, BorderLayout.WEST);
+        selectorPanel.add(pDropdown, BorderLayout.CENTER);
+
+        // --- 3. Prescription Writing Area (The "Pad") ---
+        JPanel padContainer = new JPanel(new BorderLayout());
+        padContainer.setOpaque(false);
+        padContainer.setBorder(new EmptyBorder(10, 25, 10, 25));
+
+        JTextArea area = new JTextArea("DATE: " + LocalDate.now() + "\n" +
+                "--------------------------------------------------\n" +
+                "Rx:\n\n" +
+                "1. \n" +
+                "2. \n\n" +
+                "Instructions:");
+        area.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        JScrollPane scrollArea = new JScrollPane(area);
+        scrollArea.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220)));
+        padContainer.add(scrollArea, BorderLayout.CENTER);
+
+        // --- 4. Footer with Nav-Style Buttons ---
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 20));
+        footer.setBackground(new Color(240, 244, 247));
+
+        // Nav-Style Save Button
+        Color navNormal = new Color(2, 48, 71);
+        Color navHover = new Color(6, 75, 110);
+
+        JPanel saveBtn = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 10));
+        saveBtn.setBackground(navNormal);
+        saveBtn.setPreferredSize(new Dimension(180, 45));
+        saveBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel saveLabel = new JLabel("SAVE & RECORD");
+        saveLabel.setForeground(Color.WHITE);
+        saveLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
+        saveBtn.add(saveLabel);
+
+        // Nav-Style Cancel Button
+        JPanel cancelBtn = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 10));
+        cancelBtn.setBackground(new Color(150, 150, 150));
+        cancelBtn.setPreferredSize(new Dimension(120, 45));
+        cancelBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JLabel cancelLabel = new JLabel("CANCEL");
+        cancelLabel.setForeground(Color.WHITE);
+        cancelLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
+        cancelBtn.add(cancelLabel);
+
+        // Logic for Save
+        saveBtn.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                String selectedItem = (String) pDropdown.getSelectedItem();
+                if (selectedItem == null) return;
+                String pId = selectedItem.split(" - ")[0];
+                String pText = area.getText();
+
+                String sql = "INSERT INTO prescriptions (doctor_id, patient_id, prescription_text, prescribed_date) VALUES (?, ?, ?, ?)";
+                try (Connection con = DriverManager.getConnection(URL, DB_USERNAME, DB_PASSWORD);
+                     PreparedStatement pst = con.prepareStatement(sql)) {
+                    pst.setString(1, doctorId);
+                    pst.setString(2, pId);
+                    pst.setString(3, pText);
+                    pst.setDate(4, java.sql.Date.valueOf(LocalDate.now()));
+
+                    if (pst.executeUpdate() > 0) {
+                        JOptionPane.showMessageDialog(prescFrame, "Prescription saved to medical history.");
+                        prescFrame.dispose();
+                    }
+                } catch (SQLException ex) { JOptionPane.showMessageDialog(prescFrame, "Error: " + ex.getMessage()); }
+            }
+            @Override public void mouseEntered(MouseEvent e) { saveBtn.setBackground(navHover); }
+            @Override public void mouseExited(MouseEvent e) { saveBtn.setBackground(navNormal); }
         });
-        prescriptionsFrame.add(pDropdown, BorderLayout.NORTH);
-        prescriptionsFrame.add(new JScrollPane(area), BorderLayout.CENTER);
-        prescriptionsFrame.add(save, BorderLayout.SOUTH);
-        prescriptionsFrame.setVisible(true);
+
+        cancelBtn.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) { prescFrame.dispose(); }
+            @Override public void mouseEntered(MouseEvent e) { cancelBtn.setBackground(new Color(100, 100, 100)); }
+            @Override public void mouseExited(MouseEvent e) { cancelBtn.setBackground(new Color(150, 150, 150)); }
+        });
+
+        footer.add(cancelBtn);
+        footer.add(saveBtn);
+
+        // Combine Everything
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(headerPanel, BorderLayout.NORTH);
+        topPanel.add(selectorPanel, BorderLayout.SOUTH);
+
+        prescFrame.add(topPanel, BorderLayout.NORTH);
+        prescFrame.add(padContainer, BorderLayout.CENTER);
+        prescFrame.add(footer, BorderLayout.SOUTH);
+
+        prescFrame.setVisible(true);
     }
 
     private List<Patient> getMyPatients() {
@@ -463,12 +1064,12 @@ public class Doctor extends staffUser {
 
     public static void main(String args[]){
         Doctor doc = new Doctor();
-        doc.usename = "abrshiz"; // Example username
+        doc.usename = "abrshiz";
         doc.showDashboard();
     }
 }
 
-// Keep your Patient and Appointment classes outside
+// Data Helper Classes
 class Patient {
     private String patientId, name, gender, lastVisit, status;
     private int age;
