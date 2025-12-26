@@ -6,7 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="b6493669-58bd-4a9f-8d09-7d05883b0275" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/java-project.iml" beforeDir="false" afterPath="$PROJECT_DIR$/java-project.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Doctor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Doctor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/LoginPage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/LoginPage.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -34,6 +34,8 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Application.Appointment.executor": "Run",
+    "Application.Doctor.executor": "Run",
     "Application.LoginPage.executor": "Run",
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -44,7 +46,7 @@
     "git-widget-placeholder": "main",
     "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/abrshiz/Downloads/mysql-connector-j_9.5.0-1debian13_all/usr/share/java/mysql-connector-j-9.5.0.jar",
+    "last_opened_file_path": "/home/abrshiz/Desktop/Projects/Socket",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -74,7 +76,10 @@
       <option name="presentableId" value="Default" />
       <updated>1766587617117</updated>
       <workItem from="1766670257971" duration="1734000" />
-      <workItem from="1766687773243" duration="8037000" />
+      <workItem from="1766687773243" duration="8631000" />
+      <workItem from="1766699690811" duration="683000" />
+      <workItem from="1766725446226" duration="3211000" />
+      <workItem from="1766731371602" duration="13355000" />
     </task>
     <servers />
   </component>
