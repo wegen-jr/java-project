@@ -1216,11 +1216,6 @@ public class Doctor extends staffUser {
     @Override Boolean login(String password) { return true; }
     @Override void logout() { new LoginPage().setVisible(true); }
 
-    public static void main(String args[]){
-        Doctor doc = new Doctor();
-        doc.usename = "abrshiz";
-        doc.showDashboard();
-    }
 }
 
 // Data Helper Classes
