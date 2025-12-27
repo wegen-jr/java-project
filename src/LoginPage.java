@@ -1,11 +1,17 @@
+import Database.DatabaseConnection;
+import Database.AuthenticationDAO;
+import Database.DatabaseSetup;
 import javax.swing.*;
 import javax.swing.border.BevelBorder;
 import java.awt.*;
-import java.sql.*;
+import java.util.Map;
 
 public class LoginPage extends JFrame {
 
     public LoginPage() {
+        // Initialize database first
+        initializeDatabase();
+
         setTitle("HMS - Hospital Management System");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setExtendedState(MAXIMIZED_BOTH);
@@ -22,7 +28,7 @@ public class LoginPage extends JFrame {
 
         // 2. Styling Constants
         Font titleFont = new Font("SansSerif", Font.BOLD, 48);
-        Color titleColor =new Color(2,48,71);
+        Color titleColor = new Color(2, 48, 71);
 
         // 3. Center Container (Holds Title and Form)
         JPanel centerPanel = new JPanel();
@@ -37,6 +43,7 @@ public class LoginPage extends JFrame {
         JPanel titleWrapper = new JPanel();
         titleWrapper.setBackground(new Color(255, 255, 255, 150)); // Semi-transparent white
         titleWrapper.add(title);
+
         // 4. Login Form Panel
         JPanel form = new JPanel();
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
@@ -80,79 +87,101 @@ public class LoginPage extends JFrame {
         form.add(btnPanel);
         form.add(Box.createVerticalGlue());
 
-        // 5. Database Logic
-        String URL = "jdbc:mysql://localhost:3306/HMS";
-        String DBusername = "abrshiz";
-        String DBpassword = "abrsh123";
-
+        // 5. Updated Database Logic using AuthenticationDAO
         loginBtn.addActionListener(e -> {
             String inputUser = uNameField.getText();
             String inputPass = new String(passField.getPassword());
-            if (inputUser.isEmpty()){
-                JOptionPane.showMessageDialog(this,"username required!");
+
+            if (inputUser.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Username required!");
                 return;
             } else if (inputPass.isEmpty()) {
-                JOptionPane.showMessageDialog(this,"password required!");
+                JOptionPane.showMessageDialog(this, "Password required!");
                 return;
             }
-            // Use PreparedStatement to prevent SQL Injection
-            String query = "SELECT * FROM authentication WHERE Username = ? AND Passworrd = ?";
 
-            try (Connection con = DriverManager.getConnection(URL, DBusername, DBpassword);
-                 PreparedStatement pst = con.prepareStatement(query)) {
+            // Test database connection first
+            if (!DatabaseConnection.testConnection()) {
+                JOptionPane.showMessageDialog(this,
+                        "Cannot connect to database!\n" +
+                                "Please check MySQL server is running.",
+                        "Database Error",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-                pst.setString(1, inputUser);
-                pst.setString(2, inputPass);
+            // Use AuthenticationDAO for login
+            Map<String, Object> userData = AuthenticationDAO.authenticateUser(inputUser, inputPass);
 
-                try (ResultSet rs = pst.executeQuery()) {
-                    if (rs.next()) {
-                        String role=rs.getString("Role");
-                        if(role!=null){
-                            role=role.trim();
-                            JOptionPane.showMessageDialog(this, "Login Successful!");
-                            this.dispose();
-                        switch (role.toUpperCase()){
-                            case "RECEPTION":
-                                new receptionist().showDashboard();
-                                    break;
-                            case "DOCTOR":
-                                Doctor doc = new Doctor();
-                                doc.usename = inputUser; // Pass the username from the text field
-                                doc.showDashboard();
-                                break;
-                            case "PHARMACIST":
-                               // new PharmacistDashboard().setVisible(true);
-                                break;
+            if (userData != null) {
+                String role = (String) userData.get("role");
 
-                            case "ADMIN":
-                              //  new AdminDashboard().setVisible(true);
-                                break;
-                            case "LABTECHNICIAN":
-                                break;
-                            default:
-                                JOptionPane.showMessageDialog(this,
-                                        "Unknown role: " + role,
-                                        "Access Error",
-                                        JOptionPane.ERROR_MESSAGE);
-                                // Show login again
-                                new LoginPage().setVisible(true);
-                        }}else {
+                if (role != null) {
+                    role = role.trim();
+                    JOptionPane.showMessageDialog(this, "Login Successful!");
+                    this.dispose();
+
+                    switch (role.toUpperCase()) {
+                        case "RECEPTION":
+                            new receptionist().showDashboard();
+                            break;
+                        case "DOCTOR":
+                            //   new DoctorDashboard(fullName).setVisible(true);
+                            JOptionPane.showMessageDialog(this, "Doctor dashboard coming soon!");
+                            new LoginPage().setVisible(true);
+                            break;
+                        case "PHARMACIST":
+                            //   new PharmacistDashboard(fullName).setVisible(true);
+                            JOptionPane.showMessageDialog(this, "Pharmacist dashboard coming soon!");
+                            new LoginPage().setVisible(true);
+                            break;
+                        case "ADMIN":
+                            //   new AdminDashboard(fullName).setVisible(true);
+                            JOptionPane.showMessageDialog(this, "Admin dashboard coming soon!");
+                            new LoginPage().setVisible(true);
+                            break;
+                        case "LABTECHNICIAN":
+                            JOptionPane.showMessageDialog(this, "Lab Technician dashboard coming soon!");
+                            new LoginPage().setVisible(true);
+                            break;
+                        default:
                             JOptionPane.showMessageDialog(this,
-                                    "No role assigned to user",
-                                    "Error",
+                                    "Unknown role: " + role,
+                                    "Access Error",
                                     JOptionPane.ERROR_MESSAGE);
-                        }
-
-                        // Open Dashboard here: new Dashboard().setVisible(true);
-                    } else {
-                        JOptionPane.showMessageDialog(this, "Invalid credentials", "Error", JOptionPane.ERROR_MESSAGE);
-                        uNameField.setText("");
-                        passField.setText("");
+                            // Show login again
+                            new LoginPage().setVisible(true);
                     }
+                } else {
+                    JOptionPane.showMessageDialog(this,
+                            "No role assigned to user",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
                 }
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage());
-                ex.printStackTrace();
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        "Invalid username or password",
+                        "Login Failed",
+                        JOptionPane.ERROR_MESSAGE);
+                uNameField.setText("");
+                passField.setText("");
+                uNameField.requestFocus();
+            }
+        });
+
+        // Forgot Password button action
+        forgotBtn.addActionListener(e -> {
+            String username = JOptionPane.showInputDialog(this,
+                    "Enter your username:",
+                    "Password Recovery",
+                    JOptionPane.QUESTION_MESSAGE);
+
+            if (username != null && !username.trim().isEmpty()) {
+                JOptionPane.showMessageDialog(this,
+                        "Please contact system administrator\n" +
+                                "to reset your password.",
+                        "Password Recovery",
+                        JOptionPane.INFORMATION_MESSAGE);
             }
         });
 
@@ -163,18 +192,76 @@ public class LoginPage extends JFrame {
 
         mainBackgroundPanel.add(centerPanel); // GridBagLayout centers this
         add(mainBackgroundPanel);
+
+        // Center the frame
+        setLocationRelativeTo(null);
+    }
+
+    private void initializeDatabase() {
+        // Show loading dialog
+        JDialog loadingDialog = new JDialog(this, "Initializing System", true);
+        loadingDialog.setSize(300, 150);
+        loadingDialog.setLocationRelativeTo(this);
+        loadingDialog.setLayout(new BorderLayout());
+
+        JLabel loadingLabel = new JLabel("Setting up database...", SwingConstants.CENTER);
+        loadingLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        loadingDialog.add(loadingLabel, BorderLayout.CENTER);
+
+        JProgressBar progressBar = new JProgressBar();
+        progressBar.setIndeterminate(true);
+        loadingDialog.add(progressBar, BorderLayout.SOUTH);
+
+        // Start database initialization in background
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                try {
+                    System.out.println("🔄 Initializing database...");
+                    DatabaseSetup.initializeDatabase();
+                    System.out.println("✅ Database initialization complete");
+                } catch (Exception e) {
+                    System.err.println("❌ Database initialization failed: " + e.getMessage());
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                loadingDialog.dispose();
+
+                // Test database connection
+                boolean connected = DatabaseConnection.testConnection();
+                if (!connected) {
+                    JOptionPane.showMessageDialog(LoginPage.this,
+                            "⚠️  Database connection failed!\n" +
+                                    "Some features may not work properly.\n\n" +
+                                    "Please ensure:\n" +
+                                    "1. MySQL server is running\n" +
+                                    "2. Credentials are correct in DatabaseConnection.java\n" +
+                                    "3. MySQL connector JAR is in classpath",
+                            "Warning",
+                            JOptionPane.WARNING_MESSAGE);
+                }
+            }
+        };
+
+        worker.execute();
+        loadingDialog.setVisible(true);
     }
 
     public static void main(String[] args) {
-        // Ensure Database Driver is loaded (for older Java versions)
+        // Set look and feel
         try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            System.out.println("Driver not found!");
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         SwingUtilities.invokeLater(() -> {
-            new LoginPage().setVisible(true);
+            LoginPage loginPage = new LoginPage();
+            loginPage.setVisible(true);
+
         });
     }
 }

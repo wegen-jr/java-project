@@ -5,7 +5,6 @@ abstract class staffUser {
     String password;
 
     abstract void showDashboard();
-    abstract Boolean login(String String);
     abstract void logout();
 
 }
