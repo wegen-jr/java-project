@@ -29,6 +29,7 @@ public class receptionist extends staffUser {
         ImageIcon scaledIcon5 = new ImageIcon(scaledImage5);
 
         Font subtitle=new Font("SansSerif",Font.BOLD,12);
+
         JPanel mainBackgroundPanel = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
