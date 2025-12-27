@@ -14,21 +14,19 @@ import javax.swing.border.*;
 
 public class Doctor extends staffUser {
 
-    // Database connection
+
     private static final String URL = "jdbc:mysql://localhost:3306/HMS";
     private static final String DB_USERNAME = "abrshiz";
     private static final String DB_PASSWORD = "abrsh123";
 
-    // Doctor data
+
     private String doctorId;
     private String fullName;
     private String specialization;
     private String contactNumber;
     private String email;
 
-    /**
-     * ATTACHMENT LOGIC: This method wraps the Icon and Text together into one panel.
-     */
+
     private JPanel createNavItem(String text, String iconPath, Font font, Runnable action) {
         Color bg = new Color(2, 48, 71);
         Color hover = new Color(6, 75, 110);
@@ -73,7 +71,7 @@ public class Doctor extends staffUser {
         return panel;
     }
 
-    // --- TIME-BASED GREETING LOGIC ---
+
     private String getTimeGreeting() {
         int hour = LocalTime.now().getHour();
         if (hour >= 5 && hour < 12) return "Good Morning";
@@ -104,15 +102,14 @@ public class Doctor extends staffUser {
         return String.valueOf(count);
     }
     private void updateCardValue(JPanel card, String newValue) {
-        // Navigate to the content panel inside the card
+
         BorderLayout layout = (BorderLayout) card.getLayout();
         JPanel content = (JPanel) layout.getLayoutComponent(BorderLayout.CENTER);
 
-        // Find the JLabel that contains the big number
+
         for (Component comp : content.getComponents()) {
             if (comp instanceof JLabel) {
                 JLabel label = (JLabel) comp;
-                // We check if it's the number (not the icon) by checking if it has text
                 if (label.getIcon() == null) {
                     label.setText(newValue);
                     card.repaint();
@@ -130,11 +127,11 @@ public class Doctor extends staffUser {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-                // Glass effect
+
                 g2.setColor(new Color(255, 255, 255, 200));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 30, 30);
 
-                // Border
+
                 g2.setColor(new Color(255, 255, 255, 230));
                 g2.setStroke(new BasicStroke(1.5f));
                 g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 30, 30);
@@ -144,13 +141,13 @@ public class Doctor extends staffUser {
         card.setOpaque(false);
         card.setPreferredSize(new Dimension(280, 160));
 
-        // Top Accent
+
         JPanel accent = new JPanel();
         accent.setPreferredSize(new Dimension(0, 5));
         accent.setBackground(accentColor);
         card.add(accent, BorderLayout.NORTH);
 
-        // Center Content
+
         JPanel content = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 30));
         content.setOpaque(false);
 
@@ -183,7 +180,7 @@ public class Doctor extends staffUser {
 
         Font navFont = new Font("SansSerif", Font.BOLD, 12);
 
-        // Main background with the stethoscope image
+
         JPanel mainBackgroundPanel = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -195,7 +192,7 @@ public class Doctor extends staffUser {
             }
         };
 
-        // --- Left Sidebar Navigation ---
+
         JPanel leftPanel = new JPanel();
         leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
         leftPanel.setBackground(new Color(2, 48, 71));
@@ -212,7 +209,7 @@ public class Doctor extends staffUser {
         portalHeader.setFont(new Font("Arial", Font.BOLD, 18));
         portalPanel.add(portalHeader);
 
-        // Navigation Items
+
         JPanel navDash = createNavItem("Dashboard", "assets/dashboard.png", navFont, this::showDashboard);
         JPanel navPat  = createNavItem("My Patients", "assets/hospitalisation.png", navFont, this::showPatientsDashboard);
         JPanel navApp  = createNavItem("Appointments", "assets/medical-appointment.png", navFont, this::showAppointmentsDashboard);
@@ -240,23 +237,23 @@ public class Doctor extends staffUser {
 
         mainBackgroundPanel.add(leftPanel, BorderLayout.WEST);
 
-        // --- Right Content Area ---
+
         loadDoctorData();
         JPanel rightPanel = new JPanel(null);
         rightPanel.setOpaque(false);
 
-        // 1. Designed Greeting Container (Left Aligned)
+
         JPanel greetingContainer = new JPanel(new BorderLayout(20, 0));
         greetingContainer.setOpaque(false);
         greetingContainer.setBounds(60, 220, 1000, 100);
 
-        // Vertical Accent Bar
+
         JPanel accentLine = new JPanel();
         accentLine.setBackground(new Color(2, 48, 71));
         accentLine.setPreferredSize(new Dimension(8, 0));
         greetingContainer.add(accentLine, BorderLayout.WEST);
 
-        // Text Section
+
         JPanel textSection = new JPanel(new GridLayout(2, 1, 0, 5));
         textSection.setOpaque(false);
 
@@ -275,12 +272,12 @@ public class Doctor extends staffUser {
 
         rightPanel.add(greetingContainer);
 
-        // 2. Summary Cards Container (Aligned with Greeting)
+
         JPanel cardContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 30, 0));
         cardContainer.setOpaque(false);
         cardContainer.setBounds(60, 360, 1100, 200);
 
-        // Realistic Cards
+
         cardContainer.add(createSummaryCard("TODAY'S APPOINTMENTS", getAppointmentCount(),
                 new Color(2, 48, 71), "assets/medical-appointment.png"));
 
@@ -294,14 +291,13 @@ public class Doctor extends staffUser {
 
         mainBackgroundPanel.add(rightPanel, BorderLayout.CENTER);
         frame.add(mainBackgroundPanel);
-        // --- Auto-Refresh Logic (Updates cards every 5 seconds) ---
+
         Timer refreshTimer = new Timer(5000, e -> {
-            // 1. Fetch fresh data from DB
+
             String appCount = getAppointmentCount();
             String labCount = getPendingLabsCount();
             String patCount = String.valueOf(getMyPatients().size());
 
-            // 2. Find the labels inside the cardContainer and update them
             Component[] cards = cardContainer.getComponents();
             if (cards.length >= 3) {
                 updateCardValue((JPanel)cards[0], appCount);
@@ -311,7 +307,7 @@ public class Doctor extends staffUser {
         });
         refreshTimer.start();
 
-// Ensure the timer stops if the window is closed
+
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
@@ -345,7 +341,7 @@ public class Doctor extends staffUser {
         profFrame.setLocationRelativeTo(null);
         profFrame.setLayout(new BorderLayout());
 
-        // --- 1. Top Identity Card ---
+
         JPanel headerCard = new JPanel();
         headerCard.setBackground(new Color(2, 48, 71));
         headerCard.setPreferredSize(new Dimension(450, 190));
@@ -381,7 +377,7 @@ public class Doctor extends staffUser {
         nameLabel.setBounds(0, 125, 450, 30);
         headerCard.add(nameLabel);
 
-        // --- 2. Scrollable Body ---
+
         JPanel body = new JPanel();
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBackground(Color.WHITE);
@@ -395,11 +391,11 @@ public class Doctor extends staffUser {
         JScrollPane scrollPane = new JScrollPane(body);
         scrollPane.setBorder(null);
 
-        // --- 3. Bottom Action Panel (NAV-STYLE BUTTON) ---
+
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 15));
         footer.setBackground(Color.WHITE);
 
-        // Creating a panel that behaves like your Nav Items
+        
         Color normalColor = new Color(2, 48, 71);
         Color hoverColor = new Color(6, 75, 110);
 
