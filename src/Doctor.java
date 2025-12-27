@@ -15,12 +15,16 @@ import java.util.List;
 import java.util.Map;
 
 public class Doctor extends staffUser {
-    private String doctorId, fullName, specialization, contactNumber, email;
-    private String currentUsername; // To store the login username
+    private int authId; // Store the ID from the authentication table
+    private int doctorId;
+    private String fullName, specialization, contactNumber, email;
+    private HashMap<Integer, Long> completionTimers = new HashMap<>();// Needed for Lab Results logic
 
-    public Doctor(String loginUsername) {
-        this.currentUsername = loginUsername;
-        loadDoctorData(); // Pulls the specific profile (Zebiba or Abrham)
+    // FIXED CONSTRUCTOR
+    public Doctor(int authId) {
+        this.authId = authId;
+        loadDoctorData(this.authId); // Load data immediately using the passed ID
+        showDashboard();
     }
 
     private JPanel createNavItem(String text, String iconPath, Font font, Runnable action) {
@@ -73,44 +77,19 @@ public class Doctor extends staffUser {
         return "Good Evening";
     }
     private String fetchLivePendingLabsCount() {
-        // Only counts labs that are NOT completed
-        String sql = "SELECT COUNT(*) FROM lab_requests WHERE doctor_id = ? AND status = 'Pending'";
-        try (Connection con = Database.DatabaseConnection.getConnection();
-             PreparedStatement pst = con.prepareStatement(sql)) {
-            pst.setString(1, this.doctorId);
-            ResultSet rs = pst.executeQuery();
-            if (rs.next()) return String.valueOf(rs.getInt(1));
-        } catch (SQLException e) { e.printStackTrace(); }
-        return "0";
+        // Note: We access this.doctorId directly
+        int count = new DoctorDAO().getPendingLabsCount(this.doctorId);
+        return String.valueOf(count);
     }
-    private String fetchLiveAppointmentCount() {
-        // We only count today's appointments that are NOT 'Completed' or 'Cancelled'
-        String sql = "SELECT COUNT(*) FROM appointments " +
-                "WHERE doctor_id = ? " +
-                "AND DATE(appointment_date) = CURDATE() " +
-                "AND status NOT IN ('Completed', 'Cancelled')";
 
-        try (Connection con = Database.DatabaseConnection.getConnection();
-             PreparedStatement pst = con.prepareStatement(sql)) {
-            pst.setString(1, this.doctorId);
-            ResultSet rs = pst.executeQuery();
-            if (rs.next()) {
-                return String.valueOf(rs.getInt(1));
-            }
-        } catch (SQLException e) {
-            System.err.println("Appointment Count Error: " + e.getMessage());
-        }
-        return "0";
+    private String fetchLiveAppointmentCount() {
+        int count = new DoctorDAO().getTodayAppointmentCount(this.doctorId);
+        return String.valueOf(count);
     }
+
     private String fetchLivePatientCount() {
-        String sql = "SELECT COUNT(DISTINCT patient_id) FROM appointments WHERE doctor_id = ?";
-        try (Connection con = Database.DatabaseConnection.getConnection();
-             PreparedStatement pst = con.prepareStatement(sql)) {
-            pst.setString(1, this.doctorId);
-            ResultSet rs = pst.executeQuery();
-            if (rs.next()) return String.valueOf(rs.getInt(1));
-        } catch (SQLException e) { e.printStackTrace(); }
-        return "0";
+        int count = new DoctorDAO().getTotalPatientCount(this.doctorId);
+        return String.valueOf(count);
     }
     private JPanel createSummaryCard(String title, String value, Color accentColor, String iconPath) {
         JPanel card = new JPanel(new BorderLayout()) {
@@ -167,6 +146,7 @@ public class Doctor extends staffUser {
     }
 
     void showDashboard() {
+        // Prevent multiple dashboard windows from opening
         for (Frame f : Frame.getFrames()) {
             if (f instanceof JFrame && f.getTitle().contains("HMS - Hospital Management System (Doctor)")) {
                 f.dispose();
@@ -179,6 +159,7 @@ public class Doctor extends staffUser {
 
         Font navFont = new Font("SansSerif", Font.BOLD, 12);
 
+        // Main background with image support (Restored original implementation)
         JPanel mainBackgroundPanel = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -190,7 +171,7 @@ public class Doctor extends staffUser {
             }
         };
 
-        // --- Sidebar (Exact Original Design) ---
+        // --- Sidebar (Full Design Restored) ---
         JPanel leftPanel = new JPanel();
         leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
         leftPanel.setBackground(new Color(2, 48, 71));
@@ -207,6 +188,8 @@ public class Doctor extends staffUser {
 
         leftPanel.add(portalPanel);
         leftPanel.add(new JSeparator());
+
+        // All Navigation Items Restored
         leftPanel.add(createNavItem("Dashboard", "assets/dashboard.png", navFont, this::showDashboard));
         leftPanel.add(createNavItem("My Patients", "assets/hospitalisation.png", navFont, this::showPatientsDashboard));
         leftPanel.add(createNavItem("Appointments", "assets/medical-appointment.png", navFont, this::showAppointmentsDashboard));
@@ -215,30 +198,34 @@ public class Doctor extends staffUser {
         leftPanel.add(createNavItem("My Schedule", "assets/calendar.png", navFont, this::showScheduleDashboard));
         leftPanel.add(createNavItem("Prescriptions", "assets/medical-prescription.png", navFont, this::showPrescriptionsDashboard));
         leftPanel.add(createNavItem("My Profile", "assets/user.png", navFont, this::showDoctorProfile));
+
         leftPanel.add(Box.createVerticalGlue());
         leftPanel.add(createNavItem("Logout", "assets/logout.png", navFont, () -> { frame.dispose(); logout(); }));
 
         mainBackgroundPanel.add(leftPanel, BorderLayout.WEST);
 
-        // --- Right Content Area (Layout Fix) ---
-        loadDoctorData();
-        // Using BorderLayout for the right side to handle centering better
+        // --- Right Content Area ---
+        // Make sure data is loaded using the new Auth Logic
+        // --- Right Content Area ---
+        loadDoctorData(this.authId); // Pass the stored authId here
+
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.setOpaque(false);
 
-        // Welcoming Text Header
+        // Welcome Header
         JPanel welcomeBox = new JPanel();
         welcomeBox.setLayout(new BoxLayout(welcomeBox, BoxLayout.Y_AXIS));
         welcomeBox.setOpaque(false);
         welcomeBox.setBorder(BorderFactory.createEmptyBorder(150, 100, 0, 0));
 
+        // Uses your correctly reconstructed name
         JLabel welcomeLabel = new JLabel(getTimeGreeting() + ", Dr. " + (fullName != null ? fullName : "Doctor") + "!");
-        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 48)); // Increased size
+        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 48));
         welcomeLabel.setForeground(new Color(2, 48, 71));
 
-        // NEW FEATURE: Dynamic status line
+        String pendingInitial = fetchLivePendingLabsCount();
         String statusNote = "<html><i>System status: Secure & Synchronized</i><br>You have <font color='#e63946'>" +
-                fetchLivePendingLabsCount() + "</font> pending lab reports to review.</html>";
+                pendingInitial + "</font> pending lab reports to review.</html>";
         JLabel statusLabel = new JLabel(statusNote);
         statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 18));
         statusLabel.setForeground(new Color(50, 70, 90));
@@ -249,38 +236,45 @@ public class Doctor extends staffUser {
 
         rightPanel.add(welcomeBox, BorderLayout.NORTH);
 
-        // --- Summary Cards (Position Fix) ---
+        // --- Summary Cards ---
         JPanel cardContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 40, 0));
         cardContainer.setOpaque(false);
 
+        // Initial data fetch using the integer doctorId class variable
         JPanel cardAppt = createSummaryCard("TODAY'S APPOINTMENTS", fetchLiveAppointmentCount(), new Color(2, 48, 71), "assets/medical-appointment.png");
-        JPanel cardLab = createSummaryCard("PENDING LABS", fetchLivePendingLabsCount(), new Color(230, 57, 70), "assets/observation.png");
+        JPanel cardLab = createSummaryCard("PENDING LABS", pendingInitial, new Color(230, 57, 70), "assets/observation.png");
         JPanel cardPat = createSummaryCard("TOTAL PATIENTS", fetchLivePatientCount(), new Color(42, 157, 143), "assets/hospitalisation.png");
 
         cardContainer.add(cardAppt);
         cardContainer.add(cardLab);
         cardContainer.add(cardPat);
 
-        // Putting cards in a wrapper to push them to the center of the screen
         JPanel centerWrapper = new JPanel(new GridBagLayout());
         centerWrapper.setOpaque(false);
         centerWrapper.add(cardContainer);
 
         rightPanel.add(centerWrapper, BorderLayout.CENTER);
-
         mainBackgroundPanel.add(rightPanel, BorderLayout.CENTER);
         frame.add(mainBackgroundPanel);
 
-        // --- THE LIVE SYNC HEARTBEAT ---
+        // --- THE LIVE SYNC HEARTBEAT (5 Second Refresh) ---
         Timer liveSyncTimer = new Timer(5000, e -> {
-            if (!frame.isShowing()) { ((Timer)e.getSource()).stop(); return; }
+            if (!frame.isShowing()) {
+                ((Timer)e.getSource()).stop();
+                return;
+            }
 
+            // Fetching fresh data via the updated fetch methods
             String pending = fetchLivePendingLabsCount();
-            updateCardContent(cardAppt, fetchLiveAppointmentCount());
-            updateCardContent(cardLab, pending);
-            updateCardContent(cardPat, fetchLivePatientCount());
+            String appointments = fetchLiveAppointmentCount();
+            String totalPatients = fetchLivePatientCount();
 
-            // Update the welcoming subtitle live too!
+            // Update card values
+            updateCardContent(cardAppt, appointments);
+            updateCardContent(cardLab, pending);
+            updateCardContent(cardPat, totalPatients);
+
+            // Update the dynamic greeting subtitle
             statusLabel.setText("<html><i>System status: Secure & Synchronized</i><br>You have <font color='#e63946'>" +
                     pending + "</font> pending lab reports to review.</html>");
         });
@@ -307,6 +301,7 @@ public class Doctor extends staffUser {
         title.setFont(new Font("Segoe UI", Font.BOLD, 20));
         title.setForeground(Color.WHITE);
 
+        // Displays the doctor's name from the class variable
         JLabel subTitle = new JLabel("Authorized Provider: Dr. " + (fullName != null ? fullName.toUpperCase() : "Clinical Staff"));
         subTitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subTitle.setForeground(new Color(156, 163, 175));
@@ -319,7 +314,6 @@ public class Doctor extends staffUser {
         JPanel searchWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 25));
         searchWrapper.setOpaque(false);
 
-        // Search Icon (Replace "🔍" with your ImageIcon if needed)
         JLabel searchIcon = new JLabel("🔍");
         searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 18));
         searchIcon.setForeground(new Color(156, 163, 175));
@@ -327,11 +321,10 @@ public class Doctor extends staffUser {
         JTextField searchField = new JTextField("Search by ID or Name...");
         searchField.setPreferredSize(new Dimension(250, 35));
         searchField.setBackground(new Color(55, 65, 81));
-        searchField.setForeground(new Color(156, 163, 175)); // Placeholder color
+        searchField.setForeground(new Color(156, 163, 175));
         searchField.setCaretColor(Color.WHITE);
         searchField.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 10));
 
-        // Placeholder Logic: Make text removable on click/focus
         searchField.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
@@ -360,11 +353,15 @@ public class Doctor extends staffUser {
             public boolean isCellEditable(int row, int column) { return false; }
         };
 
-        // Load Data using DAO
+        // --- DATA FETCHING ---
         DoctorDAO doctorDAO = new DoctorDAO();
+        // this.doctorId is now passed as an INT
         List<Object[]> patients = doctorDAO.getAllPatientsForDoctor(this.doctorId);
-        for (Object[] row : patients) {
-            model.addRow(row);
+
+        if (patients != null) {
+            for (Object[] row : patients) {
+                model.addRow(row);
+            }
         }
 
         JTable table = new JTable(model);
@@ -375,18 +372,16 @@ public class Doctor extends staffUser {
         table.setSelectionForeground(Color.BLACK);
         table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
-        // Table Sorter
+        // Table Sorter for Search
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
         table.setRowSorter(sorter);
 
-        // STRICT SEARCH LOGIC: Only ID (0) and Name (1)
         searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             private void filter() {
                 String text = searchField.getText().trim();
                 if (text.isEmpty() || text.equals("Search by ID or Name...")) {
                     sorter.setRowFilter(null);
                 } else {
-                    // Restricted to column index 0 and 1
                     sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text, 0, 1));
                 }
             }
@@ -415,11 +410,17 @@ public class Doctor extends staffUser {
         btnContainer.setOpaque(false);
 
         JButton refreshBtn = new JButton("REFRESH RECORDS");
-        styleButton(refreshBtn, new Color(241, 245, 249), Color.DARK_GRAY);
-        refreshBtn.addActionListener(e -> { patientsFrame.dispose(); showPatientsDashboard(); });
+        // Ensure you have a styleButton method or replace with standard button logic
+        refreshBtn.setBackground(new Color(241, 245, 249));
+        refreshBtn.setForeground(Color.DARK_GRAY);
+        refreshBtn.addActionListener(e -> {
+            patientsFrame.dispose();
+            showPatientsDashboard();
+        });
 
         JButton closeBtn = new JButton("EXIT DIRECTORY");
-        styleButton(closeBtn, new Color(31, 41, 55), Color.WHITE);
+        closeBtn.setBackground(new Color(31, 41, 55));
+        closeBtn.setForeground(Color.WHITE);
         closeBtn.addActionListener(e -> patientsFrame.dispose());
 
         btnContainer.add(refreshBtn);
@@ -473,12 +474,15 @@ public class Doctor extends staffUser {
             public boolean isCellEditable(int row, int column) { return false; }
         };
 
-        // --- UPDATED LOAD LOGIC (SQL MOVED TO DAO) ---
+        // --- UPDATED LOAD LOGIC ---
         Runnable loadData = () -> {
             model.setRowCount(0);
+            // Standardized to use 'int' doctorId from the class variable
             List<Object[]> appointments = doctorDAO.getTodayAppointments(this.doctorId);
-            for (Object[] rowData : appointments) {
-                model.addRow(rowData);
+            if (appointments != null) {
+                for (Object[] rowData : appointments) {
+                    model.addRow(rowData);
+                }
             }
         };
 
@@ -486,22 +490,24 @@ public class Doctor extends staffUser {
 
         JTable table = new JTable(model);
         table.setRowHeight(55);
+        // Hiding the ID column (index 0) visually while keeping the data for logic
         table.getColumnModel().getColumn(0).setMinWidth(0);
         table.getColumnModel().getColumn(0).setMaxWidth(0);
 
-        // --- UPDATED DOUBLE-CLICK (SQL MOVED TO DAO) ---
+        // --- DOUBLE-CLICK ACTION ---
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     int row = table.getSelectedRow();
-                    int apptId = (int) table.getValueAt(row, 0);
-                    String currentStatus = (String) table.getValueAt(row, 4);
+                    if (row != -1) {
+                        int apptId = (int) table.getValueAt(row, 0);
+                        String currentStatus = (String) table.getValueAt(row, 4);
 
-                    if (!currentStatus.equals("COMPLETED")) {
-                        // Call DAO instead of local helper
-                        doctorDAO.updateAppointmentStatus(apptId, "Completed");
-                        loadData.run();
+                        if (!"COMPLETED".equalsIgnoreCase(currentStatus)) {
+                            doctorDAO.updateAppointmentStatus(apptId, "Completed");
+                            loadData.run();
+                        }
                     }
                 }
             }
@@ -511,8 +517,11 @@ public class Doctor extends staffUser {
             @Override
             public Component getTableCellRendererComponent(JTable t, Object v, boolean isS, boolean hasF, int r, int c) {
                 JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, isS, hasF, r, c);
-                if ("COMPLETED".equals(v)) lbl.setForeground(new Color(46, 204, 113));
-                else lbl.setForeground(new Color(231, 76, 60));
+                if (v != null && "COMPLETED".equalsIgnoreCase(v.toString())) {
+                    lbl.setForeground(new Color(46, 204, 113)); // Green
+                } else {
+                    lbl.setForeground(new Color(231, 76, 60));  // Red
+                }
                 return lbl;
             }
         });
@@ -538,7 +547,6 @@ public class Doctor extends staffUser {
         labFrame.setLocationRelativeTo(null);
         labFrame.setLayout(new BorderLayout());
 
-        // Initialize DAO
         DoctorDAO doctorDAO = new DoctorDAO();
 
         // --- 1. TOP DIGITAL HEADER ---
@@ -550,10 +558,10 @@ public class Doctor extends staffUser {
         topBar.setPreferredSize(new Dimension(0, 70));
         topBar.setBorder(new javax.swing.border.EmptyBorder(0, 20, 0, 20));
 
-        // Fetch the REAL ID from DAO
+        // Ensure this method exists in your DAO
         String realId = doctorDAO.getNextLabRequestId();
 
-        JLabel idDisplay = new JLabel("LAB REQ: #" + realId);
+        JLabel idDisplay = new JLabel("LAB REQ: #" + (realId != null ? realId : "NEW"));
         idDisplay.setFont(new Font("Monospaced", Font.BOLD, 22));
         idDisplay.setForeground(electricBlue);
 
@@ -585,33 +593,29 @@ public class Doctor extends staffUser {
         Font labelFont = new Font("Segoe UI", Font.BOLD, 11);
         Color labelColor = new Color(100, 100, 100);
 
-        // Patient Dropdown (Loaded via DAO)
         card.add(new JLabel("PATIENT IDENTITY") {{ setFont(labelFont); setForeground(labelColor); }});
         JComboBox<String> pCombo = new JComboBox<>();
 
         List<String> patientList = doctorDAO.getDoctorPatientList(this.doctorId);
-        for (String patient : patientList) {
-            pCombo.addItem(patient);
+        if (patientList != null) {
+            for (String patient : patientList) pCombo.addItem(patient);
         }
 
         pCombo.setMaximumSize(new Dimension(450, 35));
         card.add(pCombo); card.add(Box.createVerticalStrut(15));
 
-        // Test Type
         card.add(new JLabel("TEST CATEGORY") {{ setFont(labelFont); setForeground(labelColor); }});
         String[] tests = {"Complete Blood Count", "X-Ray Chest", "MRI Scan", "Urinalysis", "Glucose Test", "Lipid Profile"};
         JComboBox<String> testCombo = new JComboBox<>(tests);
         testCombo.setMaximumSize(new Dimension(450, 35));
         card.add(testCombo); card.add(Box.createVerticalStrut(15));
 
-        // Priority
         card.add(new JLabel("PRIORITY LEVEL") {{ setFont(labelFont); setForeground(labelColor); }});
         String[] priorities = {"Normal", "Urgent", "Emergency"};
         JComboBox<String> priorityCombo = new JComboBox<>(priorities);
         priorityCombo.setMaximumSize(new Dimension(450, 35));
         card.add(priorityCombo); card.add(Box.createVerticalStrut(15));
 
-        // Notes
         card.add(new JLabel("DOCTOR'S CLINICAL NOTES") {{ setFont(labelFont); setForeground(labelColor); }});
         JTextArea notesArea = new JTextArea(5, 20);
         notesArea.setLineWrap(true);
@@ -630,36 +634,40 @@ public class Doctor extends staffUser {
         btnLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
         navBtn.add(btnLabel);
 
+        // Save doctorId to a local variable to avoid 'this' scope issues
+        final int docIdForInnerClass = this.doctorId;
+
         navBtn.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 String selected = (String) pCombo.getSelectedItem();
-                if (selected == null || notesArea.getText().trim().isEmpty()) {
+                String notes = notesArea.getText().trim();
+
+                if (selected == null || notes.isEmpty()) {
                     JOptionPane.showMessageDialog(labFrame, "Incomplete Order: Please select patient and add notes.");
                     return;
                 }
 
                 String pId = selected.split(" - ")[0];
 
-                // Execute Insertion via DAO
+                // Use docIdForInnerClass instead of this.doctorId
                 boolean success = doctorDAO.submitLabRequest(
-                        doctorId, pId,
+                        docIdForInnerClass,
+                        pId,
                         testCombo.getSelectedItem().toString(),
                         priorityCombo.getSelectedItem().toString(),
-                        notesArea.getText()
+                        notes
                 );
 
                 if (success) {
-                    JOptionPane.showMessageDialog(labFrame, "Lab Request #" + realId + " Sent to Laboratory.");
+                    JOptionPane.showMessageDialog(labFrame, "Lab Request Submitted Successfully.");
                     labFrame.dispose();
                 } else {
                     JOptionPane.showMessageDialog(labFrame, "Failed to submit request.");
                 }
             }
-            @Override
-            public void mouseEntered(MouseEvent e) { navBtn.setBackground(electricBlue); }
-            @Override
-            public void mouseExited(MouseEvent e) { navBtn.setBackground(new Color(44, 62, 80)); }
+            @Override public void mouseEntered(MouseEvent e) { navBtn.setBackground(electricBlue); }
+            @Override public void mouseExited(MouseEvent e) { navBtn.setBackground(new Color(44, 62, 80)); }
         });
 
         card.add(navBtn);
@@ -707,31 +715,36 @@ public class Doctor extends staffUser {
             public boolean isCellEditable(int row, int column) { return false; }
         };
 
-        // --- 3. DATA LOADING ---
+        // --- 3. DATA LOADING (Updated to use int doctorId) ---
         Runnable loadData = () -> {
             model.setRowCount(0);
             long now = System.currentTimeMillis();
+
+            // DAO now takes 'int' this.doctorId
             List<Object[]> rawData = doctorDAO.getLabResultsForDoctor(this.doctorId);
 
-            for (Object[] row : rawData) {
-                int reqId = (int) row[0];
-                String status = (String) row[4];
-                String fullResultText = (row[5] == null) ? "Awaiting Results..." : row[5].toString();
+            if (rawData != null) {
+                for (Object[] row : rawData) {
+                    int reqId = (int) row[0];
+                    String status = (row[4] != null) ? row[4].toString() : "Pending";
+                    String fullResultText = (row[5] == null) ? "Awaiting Results..." : row[5].toString();
 
-                if (status.equalsIgnoreCase("Completed")) {
-                    if (!completionTimers.containsKey(reqId)) completionTimers.put(reqId, now);
-                    if ((now - completionTimers.get(reqId)) > 600000) continue;
+                    // Logic for hiding old 'Completed' results (10-minute rule)
+                    if (status.equalsIgnoreCase("Completed")) {
+                        if (!completionTimers.containsKey(reqId)) completionTimers.put(reqId, now);
+                        if ((now - completionTimers.get(reqId)) > 600000) continue;
+                    }
+
+                    String statusDisplay = (status.equalsIgnoreCase("Completed") ? "🟢 " : "🟡 ") + status.toUpperCase();
+                    model.addRow(new Object[]{
+                            "L-ORD#" + reqId,
+                            row[1].toString().toUpperCase(),
+                            row[2],
+                            row[3].toString().toUpperCase(),
+                            statusDisplay,
+                            fullResultText
+                    });
                 }
-
-                String statusDisplay = (status.equalsIgnoreCase("Completed") ? "🟢 " : "🟡 ") + status.toUpperCase();
-                model.addRow(new Object[]{
-                        "L-ORD#" + reqId,
-                        row[1].toString().toUpperCase(),
-                        row[2],
-                        row[3].toString().toUpperCase(),
-                        statusDisplay,
-                        fullResultText
-                });
             }
         };
         loadData.run();
@@ -743,7 +756,7 @@ public class Doctor extends staffUser {
         table.setShowGrid(false);
         table.setIntercellSpacing(new Dimension(0, 0));
 
-        // Interaction 1: Change cursor to Hand on the Results Column
+        // Cursor interaction
         table.addMouseMotionListener(new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -752,19 +765,21 @@ public class Doctor extends staffUser {
             }
         });
 
-        // Interaction 2: Double Click to Open Full Viewer
+        // Double-click viewer interaction
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     int row = table.getSelectedRow();
-                    String content = table.getValueAt(row, 5).toString();
-                    if (!content.equals("Awaiting Results...")) {
-                        openFullResultViewer(
-                                table.getValueAt(row, 0).toString(),
-                                table.getValueAt(row, 1).toString(),
-                                content
-                        );
+                    if (row != -1) {
+                        String content = table.getValueAt(row, 5).toString();
+                        if (!content.equals("Awaiting Results...")) {
+                            openFullResultViewer(
+                                    table.getValueAt(row, 0).toString(),
+                                    table.getValueAt(row, 1).toString(),
+                                    content
+                            );
+                        }
                     }
                 }
             }
@@ -776,15 +791,14 @@ public class Doctor extends staffUser {
                 Component comp = super.getTableCellRendererComponent(t, v, isSel, hasF, r, c);
                 comp.setBackground(isSel ? new Color(220, 235, 250) : Color.WHITE);
 
-                // Stylize the Results column to look clickable
                 if (c == 5) {
-                    comp.setForeground(new Color(52, 152, 219));
-                    setFont(new Font("Segoe UI", Font.ITALIC, 13));
+                    comp.setForeground(new Color(52, 152, 219)); // Blue clickable look
+                    comp.setFont(new Font("Segoe UI", Font.ITALIC, 13));
                 } else {
                     comp.setForeground(Color.BLACK);
                 }
 
-                setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(235, 238, 242)));
+                ((JLabel)comp).setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(235, 238, 242)));
                 return comp;
             }
         });
@@ -802,6 +816,7 @@ public class Doctor extends staffUser {
         footer.setBackground(Color.WHITE);
         footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(230, 230, 230)));
 
+        // Auto-refresh timer (Every 30 seconds)
         javax.swing.Timer autoRefresh = new javax.swing.Timer(30000, e -> loadData.run());
         autoRefresh.start();
 
@@ -811,7 +826,10 @@ public class Doctor extends staffUser {
 
         JButton closeBtn = new JButton("CLOSE MONITOR");
         styleNavButton(closeBtn, navDark, Color.WHITE);
-        closeBtn.addActionListener(e -> { autoRefresh.stop(); resultsFrame.dispose(); });
+        closeBtn.addActionListener(e -> {
+            autoRefresh.stop();
+            resultsFrame.dispose();
+        });
 
         footer.add(refreshBtn); footer.add(closeBtn);
         resultsFrame.add(footer, BorderLayout.SOUTH);
@@ -820,25 +838,56 @@ public class Doctor extends staffUser {
     }
     private void openFullResultViewer(String orderId, String patient, String content) {
         JFrame detailFrame = new JFrame("Laboratory EHR - Diagnostic Report");
-        detailFrame.setSize(600, 500);
+        detailFrame.setSize(600, 550); // Slightly taller for the footer
         detailFrame.setLocationRelativeTo(null);
+        detailFrame.setLayout(new BorderLayout());
 
+        // --- 1. HEADER (STAYS DARK) ---
+        JPanel header = new JPanel(new GridLayout(2, 1));
+        header.setBackground(new Color(23, 32, 42));
+        header.setBorder(new javax.swing.border.EmptyBorder(15, 25, 15, 25));
+
+        JLabel l1 = new JLabel("PATIENT: " + patient.toUpperCase());
+        l1.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        l1.setForeground(Color.WHITE);
+
+        JLabel l2 = new JLabel("ORDER REF: " + orderId);
+        l2.setFont(new Font("Monospaced", Font.BOLD, 12));
+        l2.setForeground(new Color(52, 152, 219));
+
+        header.add(l1);
+        header.add(l2);
+
+        // --- 2. REPORT CONTENT ---
         JTextArea textArea = new JTextArea(content);
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
         textArea.setEditable(false);
         textArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
-        textArea.setMargin(new Insets(20, 20, 20, 20));
+        textArea.setMargin(new Insets(25, 25, 25, 25));
+        textArea.setBackground(new Color(250, 251, 252));
 
-        JPanel header = new JPanel(new GridLayout(2, 1));
-        header.setBackground(new Color(23, 32, 42));
-        header.setBorder(new javax.swing.border.EmptyBorder(10, 20, 10, 20));
-        JLabel l1 = new JLabel("PATIENT: " + patient); l1.setForeground(Color.WHITE);
-        JLabel l2 = new JLabel("ORDER: " + orderId); l2.setForeground(new Color(52, 152, 219));
-        header.add(l1); header.add(l2);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+
+        // --- 3. FOOTER (NEW: ACTIONS) ---
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
+        footer.setBackground(Color.WHITE);
+        footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(230, 230, 230)));
+
+        JButton closeBtn = new JButton("CLOSE REPORT");
+        closeBtn.setFocusPainted(false);
+        closeBtn.setBackground(new Color(23, 32, 42));
+        closeBtn.setForeground(Color.WHITE);
+        closeBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        closeBtn.addActionListener(e -> detailFrame.dispose());
+
+        footer.add(closeBtn);
 
         detailFrame.add(header, BorderLayout.NORTH);
-        detailFrame.add(new JScrollPane(textArea), BorderLayout.CENTER);
+        detailFrame.add(scrollPane, BorderLayout.CENTER);
+        detailFrame.add(footer, BorderLayout.SOUTH);
+
         detailFrame.setVisible(true);
     }
     void showScheduleDashboard() {
@@ -878,10 +927,14 @@ public class Doctor extends staffUser {
             public boolean isCellEditable(int row, int column) { return false; }
         };
 
-        // --- DATA LOADING REDIRECTED TO DAO ---
+        // --- DATA LOADING REDIRECTED TO DAO (Using int doctorId) ---
         List<Object[]> scheduleData = doctorDAO.getFullClinicalSchedule(this.doctorId);
-        for (Object[] row : scheduleData) {
-            model.addRow(row);
+
+        // Safety check to ensure data exists before adding to model
+        if (scheduleData != null) {
+            for (Object[] row : scheduleData) {
+                model.addRow(row);
+            }
         }
 
         JTable table = new JTable(model);
@@ -897,6 +950,7 @@ public class Doctor extends staffUser {
         table.getTableHeader().setForeground(new Color(2, 48, 71));
         table.getTableHeader().setPreferredSize(new Dimension(0, 45));
 
+        // Column sizing
         table.getColumnModel().getColumn(0).setPreferredWidth(120);
         table.getColumnModel().getColumn(1).setPreferredWidth(180);
         table.getColumnModel().getColumn(3).setPreferredWidth(350);
@@ -922,16 +976,28 @@ public class Doctor extends staffUser {
         closeLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
         closeBtnNav.add(closeLabel);
 
+        // Navigation and hover logic
         MouseAdapter navAction = new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) { scheduleFrame.dispose(); }
-            @Override public void mouseEntered(MouseEvent e) { closeBtnNav.setBackground(hoverColor); }
-            @Override public void mouseExited(MouseEvent e) { closeBtnNav.setBackground(normalColor); }
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                scheduleFrame.dispose();
+            }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                closeBtnNav.setBackground(hoverColor);
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                closeBtnNav.setBackground(normalColor);
+            }
         };
 
         closeBtnNav.addMouseListener(navAction);
         closeLabel.addMouseListener(navAction);
 
         footer.add(closeBtnNav);
+
+        // Add components to frame
         scheduleFrame.add(headerPanel, BorderLayout.NORTH);
         scheduleFrame.add(scrollPane, BorderLayout.CENTER);
         scheduleFrame.add(footer, BorderLayout.SOUTH);
@@ -944,29 +1010,26 @@ public class Doctor extends staffUser {
         prescFrame.setLocationRelativeTo(null);
         prescFrame.setLayout(new BorderLayout());
 
-        // Initialize DAO
         DoctorDAO doctorDAO = new DoctorDAO();
 
-        // Modern Digital Palette
+        // --- 1. DESIGN CONSTANTS (KEEPING YOUR EXACT LOOK) ---
         Color darkHeader = new Color(23, 32, 42);
         Color electricBlue = new Color(52, 152, 219);
         Color bgSoft = new Color(242, 243, 244);
         Color navGray = new Color(248, 249, 250);
 
-        // --- 1. TOP DIGITAL HEADER ---
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setBackground(darkHeader);
         topBar.setPreferredSize(new Dimension(0, 70));
         topBar.setBorder(new javax.swing.border.EmptyBorder(0, 20, 0, 20));
 
-        // Fetch REAL ID from DAO
         String realId = doctorDAO.getNextPrescriptionId();
-
-        JLabel idDisplay = new JLabel("ID: #" + realId);
+        JLabel idDisplay = new JLabel("ID: PRESC" + realId);
         idDisplay.setFont(new Font("Monospaced", Font.BOLD, 22));
         idDisplay.setForeground(electricBlue);
 
-        JLabel doctorInfo = new JLabel("LOGGED IN: DR. " + (fullName != null ? fullName.toUpperCase() : "ADMIN"));
+        String displayName = (fullName != null && !fullName.isEmpty()) ? fullName.toUpperCase() : "PHYSICIAN";
+        JLabel doctorInfo = new JLabel("LOGGED IN: DR. " + displayName);
         doctorInfo.setForeground(Color.LIGHT_GRAY);
         doctorInfo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
 
@@ -979,7 +1042,7 @@ public class Doctor extends staffUser {
         topBar.add(new JLabel("SYSTEM STATUS: ONLINE") {{ setForeground(new Color(46, 204, 113)); }}, BorderLayout.EAST);
         prescFrame.add(topBar, BorderLayout.NORTH);
 
-        // --- 2. THE DIGITAL WORKSPACE ---
+        // --- 2. WORKSPACE (KEEPING YOUR EXACT LAYOUT) ---
         JPanel mainContent = new JPanel(new GridBagLayout());
         mainContent.setBackground(bgSoft);
         GridBagConstraints gbc = new GridBagConstraints();
@@ -989,18 +1052,19 @@ public class Doctor extends staffUser {
         JPanel leftCol = new JPanel(new GridLayout(4, 1, 0, 10));
         leftCol.setOpaque(false);
 
-        // Patient Dropdown (Loaded via DAO)
         JComboBox<String> pDropdown = new JComboBox<>();
         pDropdown.setBorder(BorderFactory.createTitledBorder("PATIENT SELECTOR"));
+
+        // Ensure the list is fetched using the current doctor's ID
         List<String> patients = doctorDAO.getDoctorPatientList(this.doctorId);
-        for (String p : patients) pDropdown.addItem(p);
+        if (patients != null) {
+            for (String p : patients) pDropdown.addItem(p);
+        }
 
         JTextField diagField = new JTextField();
         diagField.setBorder(BorderFactory.createTitledBorder("CLINICAL DIAGNOSIS"));
-
         JTextField medField = new JTextField();
         medField.setBorder(BorderFactory.createTitledBorder("MEDICATION NAME"));
-
         JTextField doseField = new JTextField();
         doseField.setBorder(BorderFactory.createTitledBorder("DOSAGE (e.g. 500mg - 2x daily)"));
 
@@ -1012,6 +1076,7 @@ public class Doctor extends staffUser {
         JTextArea instrArea = new JTextArea();
         instrArea.setBorder(BorderFactory.createTitledBorder("ADDITIONAL INSTRUCTIONS"));
         instrArea.setLineWrap(true);
+        instrArea.setWrapStyleWord(true);
 
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.4; gbc.weighty = 1.0;
         mainContent.add(leftCol, gbc);
@@ -1020,7 +1085,7 @@ public class Doctor extends staffUser {
 
         prescFrame.add(mainContent, BorderLayout.CENTER);
 
-        // --- 3. THE NAV ACTION BAR ---
+        // --- 3. ACTION BAR (KEEPING YOUR EXACT BUTTONS) ---
         JPanel navActionPanel = new JPanel(new BorderLayout());
         navActionPanel.setBackground(navGray);
         navActionPanel.setPreferredSize(new Dimension(0, 65));
@@ -1028,10 +1093,8 @@ public class Doctor extends staffUser {
 
         JPanel rightNav = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
         rightNav.setOpaque(false);
-
         JButton cancelBtn = new JButton("DISCARD");
         styleNavButton(cancelBtn, new Color(149, 165, 166));
-
         JButton saveBtn = new JButton("COMMIT RECORD");
         styleNavButton(saveBtn, electricBlue);
 
@@ -1040,30 +1103,41 @@ public class Doctor extends staffUser {
         navActionPanel.add(rightNav, BorderLayout.EAST);
         prescFrame.add(navActionPanel, BorderLayout.SOUTH);
 
-        // --- Logic ---
+        // --- 4. THE LOGIC (RE-EDITED FOR STABILITY) ---
+        // Inside the saveBtn.addActionListener of showPrescriptionsDashboard()
         saveBtn.addActionListener(e -> {
-            String selected = (String) pDropdown.getSelectedItem();
-            if (selected == null || diagField.getText().isEmpty()) {
-                JOptionPane.showMessageDialog(prescFrame, "Error: Missing Mandatory Fields.");
+            Object selectedItem = pDropdown.getSelectedItem();
+            String diag = diagField.getText().trim();
+            String med = medField.getText().trim();
+            String dose = doseField.getText().trim();
+            String instr = instrArea.getText().trim();
+
+            // 1. Validation (Design remains same, logic is hardened)
+            if (selectedItem == null || diag.isEmpty() || med.isEmpty()) {
+                JOptionPane.showMessageDialog(prescFrame, "Error: Patient, Diagnosis, and Medication are required.");
                 return;
             }
 
-            String pId = selected.split(" - ")[0];
+            // 2. Safe Extraction of Patient ID (e.g., "P001")
+            String fullString = selectedItem.toString();
+            String pId = fullString.split(" - ")[0].trim();
 
-            // Execute Transaction via DAO
+            // 3. Database Execution
             boolean success = doctorDAO.submitPrescriptionAndRecord(
-                    pId, this.doctorId,
-                    medField.getText(),
-                    doseField.getText(),
-                    instrArea.getText(),
-                    diagField.getText()
+                    pId,           // String 'P001'
+                    this.doctorId, // int 2 (Now consistent across DB)
+                    med,
+                    dose,
+                    instr,
+                    diag
             );
 
             if (success) {
-                JOptionPane.showMessageDialog(prescFrame, "Record Successfully Synced.");
+                JOptionPane.showMessageDialog(prescFrame, "Success: Clinical record and prescription archived.");
                 prescFrame.dispose();
             } else {
-                JOptionPane.showMessageDialog(prescFrame, "System Error: Transaction Failed.");
+                // Detailed error message to help you debug
+                JOptionPane.showMessageDialog(prescFrame, "Database Error: Could not save records. Check console for details.");
             }
         });
 
@@ -1086,7 +1160,8 @@ public class Doctor extends staffUser {
         header.setPreferredSize(new Dimension(0, 110));
         header.setBorder(new javax.swing.border.EmptyBorder(25, 35, 20, 35));
 
-        JLabel idTag = new JLabel("AUTHENTICATED STAFF ID: #" + this.doctorId);
+        // Using this.doctorId as an int
+        JLabel idTag = new JLabel("AUTHENTICATED STAFF ID: DOC" + this.doctorId);
         idTag.setFont(new Font("Monospaced", Font.BOLD, 13));
         idTag.setForeground(new Color(52, 152, 219));
 
@@ -1108,27 +1183,51 @@ public class Doctor extends staffUser {
         contentContainer.setBackground(Color.WHITE);
         contentContainer.setBorder(new javax.swing.border.EmptyBorder(30, 40, 30, 40));
 
-        // FETCH DATA FROM DAO
+        // Fetching data from DAO using the int doctorId
         Map<String, String> doctorData = doctorDAO.getDoctorProfileData(this.doctorId);
 
-        if (!doctorData.isEmpty()) {
-            addProfileRow(contentContainer, "MEDICAL SPECIALIZATION", doctorData.get("specialization"));
-            addProfileRow(contentContainer, "ASSIGNED DEPARTMENT", doctorData.get("department"));
-            addProfileRow(contentContainer, "QUALIFICATIONS & DEGREES", doctorData.get("qualification"));
-            addProfileRow(contentContainer, "PRACTICE LICENSE NUMBER", doctorData.get("license_number"));
-            addProfileRow(contentContainer, "OFFICIAL CONTACT", doctorData.get("contact_number"));
-            addProfileRow(contentContainer, "SYSTEM EMAIL", doctorData.get("email"));
-            addProfileRow(contentContainer, "CLINICAL WORKING HOURS", doctorData.get("working_hours"));
+        if (doctorData != null && !doctorData.isEmpty()) {
+            addProfileRow(contentContainer, "MEDICAL SPECIALIZATION", doctorData.getOrDefault("specialization", "General Medicine"));
+            addProfileRow(contentContainer, "ASSIGNED DEPARTMENT", doctorData.getOrDefault("department", "Clinical Services"));
+            addProfileRow(contentContainer, "QUALIFICATIONS & DEGREES", doctorData.getOrDefault("qualification", "M.D. / M.B.B.S"));
+            addProfileRow(contentContainer, "PRACTICE LICENSE NUMBER", doctorData.getOrDefault("license_number", "PENDING VERIFICATION"));
+            addProfileRow(contentContainer, "OFFICIAL CONTACT", doctorData.getOrDefault("contact_number", "Not Provided"));
+            addProfileRow(contentContainer, "SYSTEM EMAIL", doctorData.getOrDefault("email", "Not Set"));
+            addProfileRow(contentContainer, "CLINICAL WORKING HOURS", doctorData.getOrDefault("working_hours", "09:00 AM - 05:00 PM"));
 
-            // Availability Badge
+            contentContainer.add(Box.createRigidArea(new Dimension(0, 25)));
+
+            // Availability Badge Logic
             JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
             statusPanel.setOpaque(false);
-            String status = doctorData.get("availability");
+            String status = doctorData.getOrDefault("availability", "Available");
             JLabel statusIcon = new JLabel("● SYSTEM STATUS: " + status.toUpperCase());
-            statusIcon.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            statusIcon.setForeground(status.equalsIgnoreCase("Available") ? new Color(46, 204, 113) : Color.ORANGE);
+            statusIcon.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+            if (status.equalsIgnoreCase("Available")) {
+                statusIcon.setForeground(new Color(46, 204, 113)); // Emerald Green
+            } else if (status.equalsIgnoreCase("Busy") || status.equalsIgnoreCase("In Surgery")) {
+                statusIcon.setForeground(new Color(243, 156, 18)); // Orange
+            } else {
+                statusIcon.setForeground(new Color(231, 76, 60)); // Alizarin Red
+            }
+
             statusPanel.add(statusIcon);
             contentContainer.add(statusPanel);
+        } else {
+            // Fallback UI in case database entry is missing
+            JLabel errorIcon = new JLabel("⚠️ PROFILE INCOMPLETE");
+            errorIcon.setForeground(new Color(149, 165, 166));
+            errorIcon.setFont(new Font("Segoe UI", Font.BOLD, 16));
+
+            JLabel errorDetail = new JLabel("<html><body style='width: 350px; color: #7F8C8D;'>" +
+                    "Full professional credentials for Dr. " + fullName + " are not yet registered in the system archive. " +
+                    "Please contact HR to update your staff record.</body></html>");
+            errorDetail.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+            contentContainer.add(errorIcon);
+            contentContainer.add(Box.createVerticalStrut(10));
+            contentContainer.add(errorDetail);
         }
 
         JScrollPane scroll = new JScrollPane(contentContainer);
@@ -1137,12 +1236,17 @@ public class Doctor extends staffUser {
         profileFrame.add(scroll, BorderLayout.CENTER);
 
         // --- 3. NAV ACTION FOOTER ---
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 30, 15));
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 15));
         footer.setBackground(Color.WHITE);
         footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(235, 235, 235)));
 
         JButton closeBtn = new JButton("DISMISS PROFILE");
-        styleNavButton(closeBtn, new Color(23, 32, 42));
+        // Standardizing button style across the EHR system
+        closeBtn.setBackground(new Color(23, 32, 42));
+        closeBtn.setForeground(Color.WHITE);
+        closeBtn.setFocusPainted(false);
+        closeBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        closeBtn.setPreferredSize(new Dimension(140, 35));
         closeBtn.addActionListener(e -> profileFrame.dispose());
 
         footer.add(closeBtn);
@@ -1152,58 +1256,74 @@ public class Doctor extends staffUser {
     }
     private void updateCardContent(JPanel card, String newValue) {
         try {
-            // card (BorderLayout) -> component at index 1 is the 'content' panel (FlowLayout)
-            if (card.getComponentCount() > 1 && card.getComponent(1) instanceof JPanel) {
-                JPanel content = (JPanel) card.getComponent(1);
+            // Ensure the newValue is valid to avoid displaying "null" strings
+            String displayValue = (newValue != null) ? newValue : "0";
 
-                for (Component c : content.getComponents()) {
+            // The card follows a specific structure: BorderLayout -> Center is the Content Panel
+            // We verify the component at index 1 is indeed the data container
+            if (card.getComponentCount() > 1 && card.getComponent(1) instanceof JPanel) {
+                JPanel contentPanel = (JPanel) card.getComponent(1);
+
+                for (Component c : contentPanel.getComponents()) {
                     if (c instanceof JLabel) {
                         JLabel label = (JLabel) c;
-                        // We only want to update the label that has text numbers, not the icon
+
+                        /* * Logic: We only update the text label.
+                         * We skip the JLabel that contains the icon to avoid
+                         * accidentally overwriting the image with text.
+                         */
                         if (label.getIcon() == null) {
-                            if (!label.getText().equals(newValue)) {
-                                label.setText(newValue);
+                            // Only trigger a re-render if the value has actually changed
+                            if (!label.getText().equals(displayValue)) {
+                                label.setText(displayValue);
+
+                                // Essential for smooth live updates:
+                                // Revalidate updates the layout, Repaint redraws the pixels.
+                                contentPanel.revalidate();
                                 card.revalidate();
                                 card.repaint();
                             }
+                            break; // Found the data label, no need to check other components
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            // This prevents the "rise error" from crashing the app
-            System.err.println("Live update failed: " + e.getMessage());
+            // Log the error for debugging without interrupting the doctor's workflow
+            System.err.println("Dashboard Heartbeat Sync Error: " + e.getMessage());
         }
     }
-    private void loadDoctorData() {
-        if (this.currentUsername == null) return;
-
+    private void loadDoctorData(int loggedInAuthId) {
         // Initialize DAO
         DoctorDAO doctorDAO = new DoctorDAO();
 
-        // Fetch the specific doctor object/map from DAO
-        Map<String, String> data = doctorDAO.getDoctorByUsername(this.currentUsername);
+        // Fetch data using the AUTH_ID from the authentication table
+        Map<String, String> data = doctorDAO.getDoctorByAuthId(loggedInAuthId);
 
-        if (!data.isEmpty()) {
-            this.doctorId = data.get("doctor_id");
-            this.fullName = data.get("full_name");
-            this.specialization = data.get("specialization");
-            this.contactNumber = data.get("contact_number");
-            this.email = data.get("email");
-            System.out.println("✅ Portal context set to: " + this.fullName);
+        if (data != null && !data.isEmpty()) {
+            try {
+                // 1. Set the primary Doctor ID (int)
+                this.doctorId = Integer.parseInt(data.get("doctor_id"));
+
+                // 2. Reconstruct Full Name from the three columns
+                String fName = data.get("first_name");
+                String mName = data.get("middle_name");
+                String lName = data.get("last_name");
+
+                this.fullName = fName + (mName != null && !mName.isEmpty() ? " " + mName : "") + " " + lName;
+
+                // 3. Map the rest of the clinical fields
+                this.specialization = data.get("specialization");
+                this.contactNumber = data.get("contact_number");
+                this.email = data.get("email");
+
+                System.out.println("✅ Portal context set for: Dr. " + this.fullName + " (ID: " + this.doctorId + ")");
+            } catch (Exception e) {
+                System.err.println("❌ Data Mapping Error: " + e.getMessage());
+            }
         } else {
-            System.err.println("❌ Profile Load Error: No doctor found for username " + this.currentUsername);
+            System.err.println("❌ Profile Load Error: No doctor linked to Auth ID #" + loggedInAuthId);
         }
-    }
-    private HashMap<Integer, Long> completionTimers = new HashMap<>();
-    private void styleButton(JButton btn, Color bg, Color fg) {
-        btn.setPreferredSize(new Dimension(180, 40));
-        btn.setBackground(bg);
-        btn.setForeground(fg);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        btn.setFocusPainted(false);
-        btn.setBorderPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
     }
     private void styleNavButton(JButton btn, Color bg) {
         btn.setPreferredSize(new Dimension(180, 42));
@@ -1251,7 +1371,7 @@ public class Doctor extends staffUser {
     }
     @Override void logout() { new LoginPage().setVisible(true); }
 
-    public static void main (String args[]){
-        new Doctor("abrshiz").showDashboard();
-    }
+//    public static void main (String args[]){
+//        new Doctor(2).showDashboard();
+//    }
 }

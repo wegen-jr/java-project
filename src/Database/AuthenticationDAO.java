@@ -21,7 +21,6 @@ public class AuthenticationDAO {
 
             pstmt.setString(1, username);
             pstmt.setString(2, password);
-
             ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
@@ -33,11 +32,15 @@ public class AuthenticationDAO {
                 userData.put("username", rs.getString("username"));
                 userData.put("role", role);
 
-                // Fetch full name from corresponding staff table
+                // Fetch full name AND specific ID
                 String fullName = null;
                 switch (role.toUpperCase()) {
                     case "DOCTOR":
+                        // 1. Get the Name
                         fullName = getDoctorName(conn, authId);
+                        // 2. GET THE DOCTOR_ID (Primary Key from doctors table)
+                        int realDoctorId = getDoctorIdByAuthId(conn, authId);
+                        userData.put("doctor_id", realDoctorId);
                         break;
                     case "RECEPTIONIST":
                         fullName = getReceptionistName(conn, authId);
@@ -45,19 +48,29 @@ public class AuthenticationDAO {
                     case "ADMIN":
                         fullName = getAdminName(conn, authId);
                         break;
-                    // Add other roles here if needed
                 }
 
                 if (fullName != null) {
                     userData.put("full_name", fullName);
                 }
             }
-
         } catch (SQLException e) {
             System.err.println("Authentication error: " + e.getMessage());
         }
-
         return userData;
+    }
+
+    // Helper method to get the Primary Key 'doctor_id'
+    private static int getDoctorIdByAuthId(Connection conn, int authId) throws SQLException {
+        String sql = "SELECT doctor_id FROM doctors WHERE auth_id = ?";
+        try (PreparedStatement pst = conn.prepareStatement(sql)) {
+            pst.setInt(1, authId);
+            ResultSet rs = pst.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("doctor_id");
+            }
+        }
+        return -1;
     }
 
     // Helper: Get doctor full name
