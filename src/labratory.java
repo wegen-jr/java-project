@@ -10,8 +10,8 @@ import java.util.Date;
 
 public class labratory {
     private static final String URL = "jdbc:mysql://localhost:3306/HMS";
-    private static final String DB_USER = "yabu";
-    private static final String DB_PASS = "yab123";
+    private static final String DB_USER = "phpmyadmin";
+    private static final String DB_PASS = "wegen@1996";
 
     private JFrame frame;
     public String username;
