@@ -1,11 +1,11 @@
 package Database;
+
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class StatisticsDAO {
+
+    /* ================= DASHBOARD SUMMARY ================= */
 
     public static Map<String, Integer> getDashboardStats() {
         Map<String, Integer> stats = new HashMap<>();
@@ -16,26 +16,73 @@ public class StatisticsDAO {
         stats.put("availableDoctors", getAvailableDoctors());
         stats.put("todayAppointments", getTodayAppointmentsCount());
         stats.put("todayCompleted", getTodayCompletedAppointments());
-
+        stats.put("totalAppointment", getTotalAppointments());
         return stats;
     }
 
-    public static int getTotalPatients() {
-        String query = "SELECT COUNT(*) as count FROM patients";
-        return executeCountQuery(query);
+    public static int getTotalAppointments(){
+        return executeCountQuery("SELECT COUNT(*) FROM appointments");
     }
+    public static int getTotalPatients() {
+        return executeCountQuery("SELECT COUNT(*) FROM patients");
+    }
+
+    public static int getPatientsWaiting() {
+        return executeCountQuery("""
+            SELECT COUNT(*) 
+            FROM appointments
+            WHERE appointment_date = CURDATE()
+              AND status = 'Scheduled'
+              AND appointment_time <= CURTIME()
+        """);
+    }
+
+    private static int getTotalDoctors() {
+        return executeCountQuery("SELECT COUNT(*) FROM doctors");
+    }
+
+    public static int getAvailableDoctors() {
+        return executeCountQuery("""
+            SELECT COUNT(*) 
+            FROM doctors 
+            WHERE availability = 'Available'
+        """);
+    }
+
+    private static int getTodayAppointmentsCount() {
+        return executeCountQuery("""
+            SELECT COUNT(*) 
+            FROM appointments 
+            WHERE appointment_date = CURDATE()
+        """);
+    }
+
+    private static int getTodayCompletedAppointments() {
+        return executeCountQuery("""
+            SELECT COUNT(*) 
+            FROM appointments
+            WHERE appointment_date = CURDATE()
+              AND status = 'Completed'
+        """);
+    }
+
+    /* ================= DOCTOR LIST ================= */
+
     public static List<Map<String, Object>> getAllDoctors() {
         List<Map<String, Object>> list = new ArrayList<>();
 
         String sql = """
-        SELECT doctor_id,
-               full_name,
-               specialization,
-               contact_number,
-               email,
-               availability
-        FROM doctors
-    """;
+            SELECT doctor_id,
+                   first_name,
+                   middle_name,
+                   last_name,
+                   specialization,
+                   contact_number,
+                   email,
+                   availability
+            FROM doctors
+            ORDER BY first_name
+        """;
 
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql);
@@ -43,12 +90,14 @@ public class StatisticsDAO {
 
             while (rs.next()) {
                 Map<String, Object> row = new HashMap<>();
-                row.put("doctor_id", rs.getString("doctor_id"));
-                row.put("full_name", rs.getString("full_name"));
+                row.put("doctor_id", rs.getInt("doctor_id"));
+                row.put("first_name", rs.getString("first_name"));
+                row.put("middle_name", rs.getString("middle_name"));
+                row.put("last_name", rs.getString("last_name"));
                 row.put("specialization", rs.getString("specialization"));
                 row.put("contact", rs.getString("contact_number"));
                 row.put("email", rs.getString("email"));
-                row.put("status", rs.getString("availability")); // use availability here
+                row.put("status", rs.getString("availability"));
                 list.add(row);
             }
         } catch (SQLException e) {
@@ -57,14 +106,16 @@ public class StatisticsDAO {
         return list;
     }
 
+    /* ================= DOCTOR TODAY SCHEDULE ================= */
 
-    // Get today's schedule of one doctor
-    public static List<Map<String, Object>> getDoctorTodaySchedule(String doctorId) {
+    public static List<Map<String, Object>> getDoctorTodaySchedule(int doctorId) {
         List<Map<String, Object>> list = new ArrayList<>();
 
         String sql = """
             SELECT a.appointment_time,
-                   p.full_name AS patient,
+                   CONCAT(p.first_name, ' ',
+                          COALESCE(p.middle_name,''), ' ',
+                          p.last_name) AS patient_name,
                    a.reason,
                    a.status
             FROM appointments a
@@ -77,49 +128,25 @@ public class StatisticsDAO {
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setString(1, doctorId);
-            ResultSet rs = ps.executeQuery();
+            ps.setInt(1, doctorId);
 
-            while (rs.next()) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("time", rs.getString("appointment_time"));
-                row.put("patient", rs.getString("patient"));
-                row.put("reason", rs.getString("reason"));
-                row.put("status", rs.getString("status"));
-                list.add(row);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("time", rs.getTime("appointment_time").toString());
+                    row.put("patient", rs.getString("patient_name"));
+                    row.put("reason", rs.getString("reason"));
+                    row.put("status", rs.getString("status"));
+                    list.add(row);
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return list;
     }
-    private static int getPatientsWaiting() {
-        String query = "SELECT COUNT(*) as count FROM appointments " +
-                "WHERE appointment_date = CURDATE() AND status = 'Scheduled' " +
-                "AND appointment_time <= CURTIME()";
-        return executeCountQuery(query);
-    }
 
-    private static int getTotalDoctors() {
-        String query = "SELECT COUNT(*) as count FROM doctors";
-        return executeCountQuery(query);
-    }
-
-    private static int getAvailableDoctors() {
-        String query = "SELECT COUNT(*) as count FROM doctors WHERE availability = 'Available'";
-        return executeCountQuery(query);
-    }
-
-    private static int getTodayAppointmentsCount() {
-        String query = "SELECT COUNT(*) as count FROM appointments WHERE appointment_date = CURDATE()";
-        return executeCountQuery(query);
-    }
-
-    private static int getTodayCompletedAppointments() {
-        String query = "SELECT COUNT(*) as count FROM appointments " +
-                "WHERE appointment_date = CURDATE() AND status = 'Completed'";
-        return executeCountQuery(query);
-    }
+    /* ================= HELPER ================= */
 
     private static int executeCountQuery(String query) {
         try (Connection conn = DatabaseConnection.getConnection();
@@ -127,10 +154,10 @@ public class StatisticsDAO {
              ResultSet rs = stmt.executeQuery(query)) {
 
             if (rs.next()) {
-                return rs.getInt("count");
+                return rs.getInt(1);
             }
         } catch (SQLException e) {
-            System.err.println("Error executing count query: " + e.getMessage());
+            System.err.println("Count query error: " + e.getMessage());
         }
         return 0;
     }

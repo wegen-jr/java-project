@@ -1,7 +1,8 @@
 import Database.AppointmentDAO;
+import Database.BillingDAO;
 import Database.PatientDAO;
 import Database.StatisticsDAO;
-
+import Model.DoctorItem;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
@@ -22,13 +23,17 @@ public class receptionist extends staffUser {
     private JPanel contentPanel;
     private DefaultTableModel patientTableModel;
     private JTable patientTable;
-
+    private DefaultTableModel model;
     LocalDateTime now = LocalDateTime.now();
     DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.ENGLISH);
     DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
     String date = now.format(dateFormatter).toLowerCase();
     String time = now.format(timeFormatter).toLowerCase();
 
+    private String username;
+    public receptionist(String username) {
+        this.username = username; // Save passed username
+    }
     // ========== Helper methods ==========
     private JPanel createNavItem(String text, ImageIcon icon, Color textColor) {
         JPanel wrapper = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
@@ -109,7 +114,7 @@ public class receptionist extends staffUser {
                         break;
 
                     case "bills":
-                        JOptionPane.showMessageDialog(frame, "Billing module coming soon");
+                       switchCenterPanel(createBillingDashboardPanel());
                         break;
 
                     // ===== QUICK ACTIONS =====
@@ -123,7 +128,7 @@ public class receptionist extends staffUser {
                         break;
 
                     case "new_appointment":
-                        switchCenterPanel(createAppointmentDashboardPanel());
+                        switchCenterPanel( createAddAppointmentFormPanel(model));
                         break;
 
                     case "search_records":
@@ -136,12 +141,7 @@ public class receptionist extends staffUser {
                         break;
 
                     case "update_info":
-                        JOptionPane.showMessageDialog(
-                                frame,
-                                "Update information selected",
-                                "Quick Action",
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
+                      switchCenterPanel(createUpdatePatientPanel(model));
                         break;
 
                     case "view_today":
@@ -177,6 +177,36 @@ public class receptionist extends staffUser {
 
         return panel;
     }
+    private void searchPatientById(String patientId) {
+        if (patientId.isEmpty()) {
+            loadPatientData(); // if empty search, reload full table
+            return;
+        }
+
+        Map<String, Object> patient = PatientDAO.getPatientById(patientId);
+        DefaultTableModel model = (DefaultTableModel) patientTable.getModel();
+        model.setRowCount(0); // clear table
+
+        if (patient != null) {
+            model.addRow(new Object[]{
+                    patient.get("patient_id"),
+                    patient.get("first_name"),
+                    patient.get("middle_name"),
+                    patient.get("last_name"),
+                    patient.get("date_of_birth"),
+                    patient.get("gender"),
+                    patient.get("contact_number"),
+                    patient.get("email"),
+                    patient.get("address"),
+                    patient.get("emergency_contact"),
+                    patient.get("blood_type"),
+                    patient.get("registration_date")
+            });
+        } else {
+            JOptionPane.showMessageDialog(frame, "No patient found with ID: " + patientId);
+            loadPatientData(); // reload full table if nothing found
+        }
+    }
 
     private JPanel createNorthPanel() {
         JPanel northPanel = new JPanel();
@@ -184,26 +214,49 @@ public class receptionist extends staffUser {
         northPanel.setBackground(new Color(2, 48, 71));
         northPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Color.white));
 
+        // Search Wrapper
         JPanel searchWrapper = new JPanel(new FlowLayout());
-        JTextField searchBar = new JTextField();
-        searchBar.setPreferredSize(new Dimension(500, 30));
-        searchBar.setMaximumSize(new Dimension(500, 30));
-        JLabel searchLabel = new JLabel("search patient by Id: ");
-        searchLabel.setForeground(Color.white);
-        searchWrapper.add(searchLabel);
-        searchWrapper.add(searchBar);
         searchWrapper.setOpaque(false);
 
+        JLabel searchLabel = new JLabel("Search patient by Id: ");
+        searchLabel.setForeground(Color.white);
+
+        JTextField searchBar = new JTextField();
+        searchBar.setPreferredSize(new Dimension(400, 30));
+
+        // Add search icon button
+        ImageIcon[] icons=loadActionIcons();
+        ImageIcon searchIcon=icons[11];
+        JButton searchButton = new JButton(new ImageIcon(searchIcon.getImage().getScaledInstance(25,25, Image.SCALE_SMOOTH)));
+        searchButton.setBorderPainted(false);
+        searchButton.setContentAreaFilled(false);
+        searchButton.setFocusPainted(false);
+        searchButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // Add action listener to search button
+        searchButton.addActionListener(e -> {
+            patientsDashboard();
+            String searchText = searchBar.getText().trim();
+            if (!searchText.isEmpty()) {
+                searchPatientById(searchText);
+            }
+        });
+
+        searchWrapper.add(searchLabel);
+        searchWrapper.add(searchBar);
+        searchWrapper.add(searchButton);
+
+        // User wrapper
         JPanel userWrapper = new JPanel(new FlowLayout());
-        JLabel username = new JLabel("username ke makbel");
-        username.setForeground(Color.white);
-        username.setFont(new Font("SansSerif", Font.BOLD, 12));
+        JLabel usernameLabel = new JLabel(username);
+        usernameLabel.setForeground(Color.white);
+        usernameLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
         JButton logout = new JButton("Logout");
         logout.setForeground(Color.white);
         logout.setBackground(new Color(2, 48, 71));
         logout.setFont(new Font("SansSerif", Font.BOLD, 12));
         logout.addActionListener(e -> logout());
-        userWrapper.add(username);
+        userWrapper.add(usernameLabel);
         userWrapper.add(logout);
         userWrapper.setOpaque(false);
 
@@ -212,6 +265,7 @@ public class receptionist extends staffUser {
 
         return northPanel;
     }
+
 
     private JPanel createLeftPanel(ImageIcon[] navIcons) {
         JPanel leftPanel = new JPanel();
@@ -342,6 +396,10 @@ public class receptionist extends staffUser {
         Color color = new Color(2, 48, 71);
 
         String totalPatientsNumber= String.valueOf(StatisticsDAO.getTotalPatients());
+        String totalAppointmentNumber=String.valueOf(StatisticsDAO.getTotalAppointments());
+        String availableDoctors= String.valueOf(StatisticsDAO.getAvailableDoctors());
+        String waittingPatients=String.valueOf(StatisticsDAO.getPatientsWaiting());
+
         // Greeting panel
         JPanel greetingPanel = new JPanel();
         greetingPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 5));
@@ -349,7 +407,7 @@ public class receptionist extends staffUser {
         greetingPanel.setBackground(new Color(255, 255, 255, 150));
         greetingPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 
-        JLabel greetingLabel = new JLabel(getGreeting() + " username kemakbel");
+        JLabel greetingLabel = new JLabel(getGreeting() +" "+username);
         greetingLabel.setFont(title);
         greetingLabel.setForeground(color);
         greetingPanel.add(greetingLabel);
@@ -364,15 +422,26 @@ public class receptionist extends staffUser {
         JLabel dateText = new JLabel("Here is the hospital overview for " + date);
         dateText.setForeground(Color.gray);
         dateText.setFont(new Font("Arial", Font.PLAIN, 14));
-
         JPanel timeWrapper = new JPanel(new FlowLayout());
         timeWrapper.setBorder(new EmptyBorder(0, 600, 0, 5));
         timeWrapper.setOpaque(false);
+
         JLabel wifi = new JLabel(new ImageIcon(actionIcons[5].getImage())); // wifi icon
-        JLabel timeText = new JLabel(time);
+
+        JLabel timeText = new JLabel();
         timeText.setForeground(color);
+
+// LIVE TIME TIMER
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+        javax.swing.Timer timer = new javax.swing.Timer(1000, e -> {
+            timeText.setText(LocalTime.now().format(timeFormatter));
+            timeText.setOpaque(false);
+        });
+        timer.start();
+
         timeWrapper.add(wifi);
         timeWrapper.add(timeText);
+
         dateTimePanel.add(dateText);
         dateTimePanel.add(timeWrapper);
 
@@ -381,9 +450,9 @@ public class receptionist extends staffUser {
         statusPanel.setBackground(new Color(255, 255, 255, 150));
         statusPanel.setOpaque(true);
 
-        JPanel patientStat = createStatPanel(actionIcons[6], "patient waiting", "4", color);
-        JPanel doctorStat = createStatPanel(actionIcons[7], "available doctors", "4", color);
-        JPanel appointStat = createStatPanel(actionIcons[8], "total appointments", "4", color);
+        JPanel patientStat = createStatPanel(actionIcons[6], "patient waiting", waittingPatients, color);
+        JPanel doctorStat = createStatPanel(actionIcons[7], "available doctors",availableDoctors, color);
+        JPanel appointStat = createStatPanel(actionIcons[8], "total appointments", totalAppointmentNumber, color);
         JPanel totalPatientStat = createStatPanel(actionIcons[6], "total patients", totalPatientsNumber, color);
 
         statusPanel.add(patientStat);
@@ -401,7 +470,7 @@ public class receptionist extends staffUser {
         quickActionPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JPanel actionsPanel = new JPanel();
-        actionsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 25, 10));
+        actionsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 25, 10));
         actionsPanel.setBackground(new Color(255, 255, 255, 150));
         actionsPanel.setOpaque(true);
 
@@ -410,19 +479,17 @@ public class receptionist extends staffUser {
         JPanel addPanel = createActionPanel(actionIcons[10], "New appointment", color, subtitle, Color.WHITE);
         JPanel searchPanel = createActionPanel(actionIcons[11], "Search records", color, subtitle, Color.WHITE);
         JPanel updatePanel = createActionPanel(actionIcons[12], "Update information", color, subtitle, Color.WHITE);
-        JPanel showPanel = createActionPanel(actionIcons[13], "View today", color, subtitle, Color.WHITE);
 
         addNavClickListener(checkPanel, "check_in");
         addNavClickListener(addPanel, "new_appointment");
         addNavClickListener(searchPanel, "search_records");
         addNavClickListener(updatePanel, "update_info");
-        addNavClickListener(showPanel, "view_today");
+
 
         actionsPanel.add(checkPanel);
         actionsPanel.add(addPanel);
         actionsPanel.add(searchPanel);
         actionsPanel.add(updatePanel);
-        actionsPanel.add(showPanel);
 
         JPanel todayAppointmentsPanel = createTodayAppointmentsTablePanel();
 
@@ -619,7 +686,7 @@ public class receptionist extends staffUser {
         JPanel tablePanel = new JPanel(new BorderLayout());
         tablePanel.setOpaque(true);
         tablePanel.setBackground(new Color(255,255,255,180)); // semi-transparent white for content
-        String[] columnName={"Card_ID","Full Name","Birt Date","Gender","Contact","Email","Adress","Emergency_Contact","Blood_type","Registration Date"};
+        String[] columnName={"Card_ID","First Name","Middle Name","Last Name","Birt Date","Gender","Contact","Email","Adress","Emergency_Contact","Blood_type","Registration Date"};
         patientTableModel=new DefaultTableModel(columnName,0);
         patientTable = new JTable(patientTableModel);
         patientTable.setBackground(new Color(255,255,255,180));
@@ -659,6 +726,148 @@ public class receptionist extends staffUser {
 
         return patientPanel;
     }
+    private JPanel createUpdatePatientPanel(DefaultTableModel tableModel) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(new Color(255, 255, 255, 180));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // ===== Fields =====
+        JTextField txtPatientId = new JTextField();
+        JTextField txtFirstName = new JTextField();
+        JTextField txtMiddleName = new JTextField();
+        JTextField txtLastName = new JTextField();
+        JComboBox<String> cbGender = new JComboBox<>(new String[]{"Male", "Female", "Other"});
+
+        // Date spinner for DOB
+        SpinnerDateModel dateModel = new SpinnerDateModel();
+        JSpinner dobSpinner = new JSpinner(dateModel);
+        JSpinner.DateEditor dateEditor = new JSpinner.DateEditor(dobSpinner, "yyyy-MM-dd");
+        dobSpinner.setEditor(dateEditor);
+
+        JTextField txtPhone = new JTextField();
+        JTextField txtEmail = new JTextField();
+        JTextField txtAddress = new JTextField();
+
+        JButton btnLoad = new JButton("Load Patient");
+        JButton btnUpdate = new JButton("Update");
+        JButton btnClear = new JButton("Clear");
+
+        // ===== Colors =====
+        Color btnColor = new Color(2, 48, 71);
+        btnLoad.setBackground(btnColor); btnLoad.setForeground(Color.WHITE);
+        btnUpdate.setBackground(btnColor); btnUpdate.setForeground(Color.WHITE);
+        btnClear.setBackground(btnColor); btnClear.setForeground(Color.WHITE);
+
+        // ===== Layout =====
+        int row = 0;
+        addField(panel, gbc, row++, "Patient ID:", txtPatientId);
+        addField(panel, gbc, row++, "First Name:", txtFirstName);
+        addField(panel, gbc, row++, "Middle Name:", txtMiddleName);
+        addField(panel, gbc, row++, "Last Name:", txtLastName);
+        addField(panel, gbc, row++, "Gender:", cbGender);
+        addField(panel, gbc, row++, "Date of Birth:", dobSpinner);
+        addField(panel, gbc, row++, "Phone:", txtPhone);
+        addField(panel, gbc, row++, "Email:", txtEmail);
+        addField(panel, gbc, row++, "Address:", txtAddress);
+
+        gbc.gridx = 0; gbc.gridy = row; panel.add(btnLoad, gbc);
+        gbc.gridx = 1; panel.add(btnUpdate, gbc);
+        gbc.gridx = 2; panel.add(btnClear, gbc);
+
+        // ===== Button Actions =====
+        // Load patient data into fields
+        btnLoad.addActionListener(e -> {
+            String patientId = txtPatientId.getText().trim();
+            if(patientId.isEmpty()) {
+                JOptionPane.showMessageDialog(panel, "Enter Patient ID", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            Map<String, Object> patient = PatientDAO.getPatientById(patientId);
+            if(patient != null) {
+                txtFirstName.setText((String) patient.get("first_name"));
+                txtMiddleName.setText((String) patient.get("middle_name"));
+                txtLastName.setText((String) patient.get("last_name"));
+                cbGender.setSelectedItem(patient.get("gender"));
+
+                // Set DOB in spinner
+                Object dobObj = patient.get("dob");
+                if(dobObj instanceof java.sql.Date) {
+                    dobSpinner.setValue(new java.util.Date(((java.sql.Date) dobObj).getTime()));
+                } else if(dobObj instanceof LocalDate) {
+                    dobSpinner.setValue(Date.from(((LocalDate) dobObj).atStartOfDay(ZoneId.systemDefault()).toInstant()));
+                }
+
+                txtPhone.setText((String) patient.get("phone"));
+                txtEmail.setText((String) patient.get("email"));
+                txtAddress.setText((String) patient.get("address"));
+            } else {
+                JOptionPane.showMessageDialog(panel, "Patient not found", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // Update patient
+        btnUpdate.addActionListener(e -> {
+            String patientId = txtPatientId.getText().trim();
+            String firstName = txtFirstName.getText().trim();
+            String middleName = txtMiddleName.getText().trim();
+            String lastName = txtLastName.getText().trim();
+            String phone = txtPhone.getText().trim();
+            String email = txtEmail.getText().trim();
+            String address = txtAddress.getText().trim();
+            String gender = cbGender.getSelectedItem().toString();
+
+            // Validation
+            if(patientId.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || phone.isEmpty()) {
+                JOptionPane.showMessageDialog(panel, "Please fill all required fields", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            // Get DOB from spinner
+            java.util.Date selectedDate = (java.util.Date) dobSpinner.getValue();
+            LocalDate dob = selectedDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+
+            // Prepare map for DAO
+            Map<String, Object> patientData = new HashMap<>();
+            patientData.put("patient_id", patientId);
+            patientData.put("first_name", firstName);
+            patientData.put("middle_name", middleName);
+            patientData.put("last_name", lastName);
+            patientData.put("gender", gender);
+            patientData.put("date_of_birth", dob); // LocalDate from spinner
+            patientData.put("contact_number", phone);
+            patientData.put("email", email);
+            patientData.put("address", address);
+
+            boolean success = PatientDAO.updatePatient(patientData);
+            if(success) {
+                JOptionPane.showMessageDialog(panel, "Patient updated successfully!");
+                loadPatientData(); // reload table
+                cardLayout.show(contentPanel, "TABLE"); // back to table view
+            } else {
+                JOptionPane.showMessageDialog(panel, "Failed to update patient", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // Clear fields
+        btnClear.addActionListener(e -> {
+            txtPatientId.setText("");
+            txtFirstName.setText("");
+            txtMiddleName.setText("");
+            txtLastName.setText("");
+            cbGender.setSelectedIndex(0);
+            dobSpinner.setValue(new java.util.Date()); // reset to today
+            txtPhone.setText("");
+            txtEmail.setText("");
+            txtAddress.setText("");
+        });
+
+        return panel;
+    }
+
+
+
 
     private void loadPatientData() {
         patientTableModel.setRowCount(0); // clear existing rows
@@ -667,7 +876,9 @@ public class receptionist extends staffUser {
         for (Map<String, Object> patient : patients) {
             patientTableModel.addRow(new Object[]{
                     patient.get("patient_id"),
-                    patient.get("full_name"),
+                    patient.get("first_name"),
+                    patient.get("middle_name"),
+                    patient.get("last_name"),
                     patient.get("date_of_birth"),
                     patient.get("gender"),
                     patient.get("contact_number"),
@@ -725,7 +936,7 @@ public class receptionist extends staffUser {
 
         // Load schedule
         StatisticsDAO statsDAO = new StatisticsDAO();
-        for (Map<String, Object> a : statsDAO.getDoctorTodaySchedule(doctorId)) {
+        for (Map<String, Object> a : statsDAO.getDoctorTodaySchedule(Integer.parseInt(doctorId))) {
             model.addRow(new Object[]{
                     a.get("time"),
                     a.get("patient"),
@@ -792,7 +1003,7 @@ public class receptionist extends staffUser {
         tablePanel.setOpaque(true);
         tablePanel.setBackground(new Color(255, 255, 255, 180));
 
-        String[] columnNames = {"Doctor ID", "Name", "Specialization", "Contact", "Email", "Status"};
+        String[] columnNames = {"Doctor ID", "First Name","Middle Name","Last Name", "Specialization", "Contact", "Email", "Status"};
       DefaultTableModel  doctorTableModel = new DefaultTableModel(columnNames, 0);
         JTable doctorTable = new JTable(doctorTableModel);
         doctorTable.setBackground(new Color(255, 255, 255, 180));
@@ -817,7 +1028,9 @@ public class receptionist extends staffUser {
         for (Map<String, Object> d : statsDAO.getAllDoctors()) {
             doctorTableModel.addRow(new Object[]{
                     d.get("doctor_id"),
-                    d.get("full_name"),
+                    d.get("first_name"),
+                    d.get("name_name"),
+                    d.get("last_name"),
                     d.get("specialization"),
                     d.get("contact"),
                     d.get("email"),
@@ -924,6 +1137,8 @@ public class receptionist extends staffUser {
         doc.setDocumentFilter(new PrefixFilter(prefix));
         txtId.setCaretPosition(prefix.length());
         JTextField txtName = new JTextField();
+        JTextField txtMName = new JTextField();
+        JTextField txtLName = new JTextField();
         SpinnerDateModel dobModel = new SpinnerDateModel();
         JSpinner txtDob = new JSpinner(dobModel);
         JSpinner.DateEditor dobEditor = new JSpinner.DateEditor(txtDob, "yyyy-MM-dd");
@@ -953,7 +1168,9 @@ public class receptionist extends staffUser {
 
         int row = 0;
         addField(panel, gbc, row++, "Patient ID:", txtId);
-        addField(panel, gbc, row++, "Full Name:", txtName);
+        addField(panel, gbc, row++, "First Name:", txtName);
+        addField(panel, gbc, row++, "Middle Name:", txtMName);
+        addField(panel, gbc, row++, "Last Name:", txtLName);
         addField(panel, gbc, row++, "Date of Birth:", txtDob);
         addField(panel, gbc, row++, "Gender:", cbGender);
         addField(panel, gbc, row++, "Contact Number:", txtContact);
@@ -974,6 +1191,8 @@ public class receptionist extends staffUser {
             txtId.setText("HMS-");
             txtId.setCaretPosition(4);
             txtName.setText("");
+            txtMName.setText("");
+            txtLName.setText("");
             txtContact.setText("");
             txtEmail.setText("");
             txtAddress.setText("");
@@ -984,7 +1203,9 @@ public class receptionist extends staffUser {
         btnSave.addActionListener(e->{
 
             String patientId = txtId.getText();
-            String fullName = txtName.getText();
+            String firstName = txtName.getText();
+            String middleName = txtName.getText();
+            String lastName = txtName.getText();
             String dateOfBirth = ((JSpinner.DateEditor) txtDob.getEditor()).getFormat().format(txtDob.getValue());
             String gender = cbGender.getSelectedItem().toString();
             String contact = txtContact.getText();
@@ -993,7 +1214,7 @@ public class receptionist extends staffUser {
             String emergencyContact = txtEmergency.getText();
             String bloodType = cbBlood.getSelectedItem().toString();
 
-            if (patientId.isEmpty() || fullName.isEmpty() || dateOfBirth.isEmpty() || gender.isEmpty() || contact.isEmpty()) {
+            if (patientId.isEmpty() || firstName.isEmpty() || middleName.isEmpty() || lastName.isEmpty() || dateOfBirth.isEmpty() ||email.isEmpty() || gender.isEmpty() || contact.isEmpty()) {
                 JOptionPane.showMessageDialog(panel, "Please fill in all required fields.", "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -1003,8 +1224,16 @@ public class receptionist extends staffUser {
                 JOptionPane.showMessageDialog(panel, "Patient ID cannot exceed 20 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            if (fullName.length() > 100) {
-                JOptionPane.showMessageDialog(panel, "Full Name cannot exceed 100 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            if (firstName.length() > 100) {
+                JOptionPane.showMessageDialog(panel, "First Name cannot exceed 100 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (middleName.length() > 100) {
+                JOptionPane.showMessageDialog(panel, "Middle Name cannot exceed 100 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (lastName.length() > 100) {
+                JOptionPane.showMessageDialog(panel, "Last Name cannot exceed 100 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
             if (contact.length() != 10 && !contact.matches("\\d{1,10}") ) {
@@ -1027,7 +1256,7 @@ public class receptionist extends staffUser {
                 return;
             }
 
-            boolean Success=PatientDAO.addPatient(patientId,fullName,dateOfBirth,gender,contact,email,address,emergencyContact,bloodType);
+            boolean Success=PatientDAO.addPatient(patientId,firstName,middleName,lastName,dateOfBirth,gender,contact,email,address,emergencyContact,bloodType);
             if(Success) {
                 JOptionPane.showMessageDialog(panel, "Recored add successfully");
                 loadPatientData();
@@ -1051,16 +1280,20 @@ public class receptionist extends staffUser {
     }
 
     private JPanel createAddAppointmentFormPanel(DefaultTableModel tableModel) {
+
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(new Color(255, 255, 255, 180));
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JTextField txtPatient = new JTextField();
-        JTextField txtDoctor = new JTextField();
+        JComboBox<DoctorItem> cmbDoctor = new JComboBox<>();
+
         JSpinner timeSpinner = new JSpinner(new SpinnerDateModel());
         timeSpinner.setEditor(new JSpinner.DateEditor(timeSpinner, "HH:mm"));
+
         JTextArea txtReason = new JTextArea(3, 20);
         JScrollPane reasonScroll = new JScrollPane(txtReason);
 
@@ -1069,49 +1302,76 @@ public class receptionist extends staffUser {
 
         Color btnColor = new Color(2, 48, 71);
         btnSave.setBackground(btnColor);
-        btnSave.setForeground(Color.white);
+        btnSave.setForeground(Color.WHITE);
         btnClear.setBackground(btnColor);
-        btnClear.setForeground(Color.white);
+        btnClear.setForeground(Color.WHITE);
+
+        // Load doctors into combo box
+        AppointmentDAO.loadDoctors(cmbDoctor);
 
         int row = 0;
         addField(panel, gbc, row++, "Patient ID:", txtPatient);
-        addField(panel, gbc, row++, "Doctor ID:", txtDoctor);
+        addField(panel, gbc, row++, "Doctor:", cmbDoctor);
         addField(panel, gbc, row++, "Time:", timeSpinner);
         addField(panel, gbc, row++, "Reason:", reasonScroll);
 
         gbc.gridx = 0;
         gbc.gridy = row;
         panel.add(btnSave, gbc);
+
         gbc.gridx = 1;
         panel.add(btnClear, gbc);
 
+        // Clear button logic
         btnClear.addActionListener(e -> {
             txtPatient.setText("");
-            txtDoctor.setText("");
+            cmbDoctor.setSelectedIndex(-1);
             txtReason.setText("");
             timeSpinner.setValue(new Date());
         });
 
+        // Save button logic
         btnSave.addActionListener(e -> {
+
             String patientId = txtPatient.getText().trim();
-            String doctorId = txtDoctor.getText().trim();
-            LocalTime time = ((Date) timeSpinner.getValue()).toInstant()
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalTime();
+            DoctorItem selectedDoctor = (DoctorItem) cmbDoctor.getSelectedItem();
             String reason = txtReason.getText().trim();
 
-            if(patientId.isEmpty() || doctorId.isEmpty() || reason.isEmpty()){
-                JOptionPane.showMessageDialog(panel, "Please fill all fields", "Error", JOptionPane.WARNING_MESSAGE);
+            LocalTime time = ((Date) timeSpinner.getValue())
+                    .toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalTime();
+
+            if (patientId.isEmpty() || selectedDoctor == null || reason.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                        panel,
+                        "Please fill all fields",
+                        "Validation Error",
+                        JOptionPane.WARNING_MESSAGE
+                );
                 return;
             }
 
-            boolean ok = AppointmentDAO.addAppointment(patientId, doctorId, LocalDate.now(), time, reason, "receptionist");
-            if(ok){
+            boolean success = AppointmentDAO.addAppointment(
+                    patientId,
+                    selectedDoctor.getDoctorId(),
+                    LocalDate.now(),
+                    time,
+                    reason,
+                    username
+            );
+
+            if (success) {
                 loadTodayAppointments(tableModel);
-                JOptionPane.showMessageDialog(panel, "Appointment scheduled!");
+                JOptionPane.showMessageDialog(panel, "Appointment scheduled successfully!");
                 cardLayout.show(contentPanel, "TABLE");
             } else {
-                JOptionPane.showMessageDialog(panel, "Failed to schedule appointment", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(
+                        panel,
+                        "Failed to schedule appointment",
+                        "Database Error",
+                        JOptionPane.ERROR_MESSAGE
+                );
             }
         });
 
@@ -1226,6 +1486,204 @@ public class receptionist extends staffUser {
 
         return appointmentPanel;
     }
+    private JPanel createBillingDashboardPanel() {
+        JPanel billingPanel = new JPanel(new BorderLayout());
+        billingPanel.setBackground(new Color(255, 255, 255, 150));
+        billingPanel.setOpaque(false);
+
+        // ===== Title Panel =====
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setOpaque(false);
+        titlePanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        JLabel titleLabel = new JLabel("Billing Management", SwingConstants.LEFT);
+        titleLabel.setFont(new Font("Serif", Font.BOLD, 28));
+        titleLabel.setForeground(new Color(2, 48, 71));
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        btnPanel.setOpaque(false);
+
+        JButton addBillBtn = new JButton("+ Add New Bill");
+        addBillBtn.setBackground(new Color(2, 48, 71));
+        addBillBtn.setForeground(Color.WHITE);
+        addBillBtn.setPreferredSize(new Dimension(150, 40));
+        addBillBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        addBillBtn.setFocusPainted(false);
+
+        JButton listBillBtn = new JButton("List All");
+        listBillBtn.setBackground(new Color(2, 48, 71));
+        listBillBtn.setForeground(Color.WHITE);
+        listBillBtn.setPreferredSize(new Dimension(150, 40));
+        listBillBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        listBillBtn.setFocusPainted(false);
+
+        btnPanel.add(addBillBtn);
+        btnPanel.add(listBillBtn);
+
+        titlePanel.add(titleLabel, BorderLayout.WEST);
+        titlePanel.add(btnPanel, BorderLayout.EAST);
+
+        // ===== CardLayout Container =====
+        cardLayout = new CardLayout();
+        contentPanel = new JPanel(cardLayout);
+        contentPanel.setOpaque(false);
+
+        // ===== Table Panel =====
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setOpaque(true);
+        tablePanel.setBackground(new Color(255, 255, 255, 180));
+
+        String[] columns = {"Bill ID", "Patient ID", "Patient Name", "Date", "Amount", "Status"};
+        DefaultTableModel billingTableModel = new DefaultTableModel(columns, 0);
+        JTable billingTable = new JTable(billingTableModel);
+        billingTable.setBackground(new Color(255, 255, 255, 180));
+        billingTable.setForeground(new Color(2, 48, 71));
+        billingTable.setRowHeight(20);
+        billingTable.setFont(new Font("Arial", Font.PLAIN, 14));
+        billingTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        billingTable.setGridColor(new Color(2, 48, 71));
+
+        JScrollPane scrollPane = new JScrollPane(billingTable);
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
+        billingTable.getTableHeader().setOpaque(true);
+        billingTable.getTableHeader().setBackground(new Color(2, 48, 71));
+        billingTable.getTableHeader().setForeground(Color.WHITE);
+
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+
+        // Load all bills
+        loadAllBills(billingTableModel);
+
+        // ===== Add Bill Form Panel =====
+        JPanel addBillPanel = createAddBillFormPanel(billingTableModel);
+        addBillPanel.setOpaque(true);
+        addBillPanel.setBackground(new Color(255, 255, 255, 180));
+
+        // ===== Add panels to CardLayout =====
+        contentPanel.add(tablePanel, "TABLE");
+        contentPanel.add(addBillPanel, "FORM");
+
+        cardLayout.show(contentPanel, "TABLE"); // show table by default
+
+        // ===== Button Actions =====
+        addBillBtn.addActionListener(e -> cardLayout.show(contentPanel, "FORM"));
+        listBillBtn.addActionListener(e -> {
+            loadAllBills(billingTableModel);
+            cardLayout.show(contentPanel, "TABLE");
+        });
+
+        billingPanel.add(titlePanel, BorderLayout.NORTH);
+        billingPanel.add(contentPanel, BorderLayout.CENTER);
+
+        return billingPanel;
+    }
+
+    // ===== Helper method to load all bills from DAO =====
+    private void loadAllBills(DefaultTableModel model) {
+        model.setRowCount(0);
+
+        for (Map<String, Object> bill : BillingDAO.getAllBills()) {
+            model.addRow(new Object[]{
+                    bill.get("bill_id"),
+                    bill.get("patient_id"),
+                    bill.get("patient_name"),
+                    bill.get("bill_date"),
+                    bill.get("total_amount"),
+                    bill.get("payment_status")
+            });
+        }
+    }
+
+    // ===== Create Add Bill Form Panel =====
+    private JPanel createAddBillFormPanel(DefaultTableModel tableModel) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(new Color(255, 255, 255, 180));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        JTextField txtPatientId = new JTextField();
+        JTextField txtConsultationFee = new JTextField("0.00");
+        JTextField txtMedicationFee = new JTextField("0.00");
+        JTextField txtLabFee = new JTextField("0.00");
+        JTextField txtOtherFee = new JTextField("0.00");
+        JComboBox<String> cbStatus = new JComboBox<>(new String[]{"Paid", "Pending", "Partial"});
+        JTextField txtDate = new JTextField(LocalDate.now().toString());
+        txtDate.setEditable(false);
+
+        JButton btnSave = new JButton("Save");
+        JButton btnClear = new JButton("Clear");
+
+        btnSave.setBackground(new Color(2, 48, 71));
+        btnSave.setForeground(Color.WHITE);
+        btnClear.setBackground(new Color(2, 48, 71));
+        btnClear.setForeground(Color.WHITE);
+
+        int row = 0;
+        addField(panel, gbc, row++, "Patient ID:", txtPatientId);
+        addField(panel, gbc, row++, "Consultation Fee:", txtConsultationFee);
+        addField(panel, gbc, row++, "Medication Fee:", txtMedicationFee);
+        addField(panel, gbc, row++, "Lab Fee:", txtLabFee);
+        addField(panel, gbc, row++, "Other Fee:", txtOtherFee);
+        addField(panel, gbc, row++, "Status:", cbStatus);
+        addField(panel, gbc, row++, "Date:", txtDate);
+
+        gbc.gridx = 0; gbc.gridy = row; panel.add(btnSave, gbc);
+        gbc.gridx = 1; panel.add(btnClear, gbc);
+
+        // ===== Button Actions =====
+        btnClear.addActionListener(e -> {
+            txtPatientId.setText("");
+            txtConsultationFee.setText("0.00");
+            txtMedicationFee.setText("0.00");
+            txtLabFee.setText("0.00");
+            txtOtherFee.setText("0.00");
+            cbStatus.setSelectedIndex(0);
+        });
+
+        btnSave.addActionListener(e -> {
+            String patientId = txtPatientId.getText().trim();
+            String status = cbStatus.getSelectedItem().toString();
+            String date = txtDate.getText();
+
+            if(patientId.isEmpty()) {
+                JOptionPane.showMessageDialog(panel, "Patient ID is required", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            // Parse fees
+            double consultationFee, medicationFee, labFee, otherFee;
+            try {
+                consultationFee = Double.parseDouble(txtConsultationFee.getText().trim());
+                medicationFee = Double.parseDouble(txtMedicationFee.getText().trim());
+                labFee = Double.parseDouble(txtLabFee.getText().trim());
+                otherFee = Double.parseDouble(txtOtherFee.getText().trim());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Invalid fee input", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            // Calculate total
+            double totalAmount = consultationFee + medicationFee + labFee + otherFee;
+
+            // Optional: can pass null for paymentMethod and createdBy for now
+            boolean success = BillingDAO.addBill(patientId, LocalDate.parse(date),
+                    consultationFee, medicationFee, labFee, otherFee, totalAmount,
+                    status, null, null);
+
+            if(success) {
+                JOptionPane.showMessageDialog(panel, "Bill added successfully!");
+                loadAllBills(tableModel);
+                cardLayout.show(contentPanel, "TABLE");
+            } else {
+                JOptionPane.showMessageDialog(panel, "Failed to add bill", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        return panel;
+    }
+
 
 
     public static String getGreeting() {

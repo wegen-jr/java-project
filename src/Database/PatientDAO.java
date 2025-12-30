@@ -1,5 +1,7 @@
 package Database;
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -8,18 +10,20 @@ import java.util.Map;
 public class PatientDAO {
 
     // Add new patient
-    public static boolean addPatient(String patientId, String fullName, String dateOfBirth,
+    public static boolean addPatient(String patientId, String firstName,String middleName,String lastName, String dateOfBirth,
                                      String gender, String contact, String email,
                                      String address, String emergencyContact, String bloodType) {
-        String query = "INSERT INTO patients (patient_id, full_name, date_of_birth, gender, " +
+        String query = "INSERT INTO patients (patient_id, first_name,middle_name,last_name, date_of_birth, gender, " +
                 "contact_number, email, address, emergency_contact, blood_type, registration_date) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())";
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
 
             pstmt.setString(1, patientId);
-            pstmt.setString(2, fullName);
+            pstmt.setString(2, firstName);
+            pstmt.setString(2, middleName);
+            pstmt.setString(2, lastName);
             pstmt.setDate(3, Date.valueOf(dateOfBirth));
             pstmt.setString(4, gender);
             pstmt.setString(5, contact);
@@ -39,7 +43,7 @@ public class PatientDAO {
     // Get all patients
     public static List<Map<String, Object>> getAllPatients() {
         List<Map<String, Object>> patients = new ArrayList<>();
-        String query = "SELECT * FROM patients ORDER BY full_name ASC";
+        String query = "SELECT * FROM patients ORDER BY first_name ASC";
 
         try (Connection conn = DatabaseConnection.getConnection();
              Statement stmt = conn.createStatement();
@@ -65,7 +69,7 @@ public class PatientDAO {
     // Search patients
     public static List<Map<String, Object>> searchPatients(String searchTerm) {
         List<Map<String, Object>> patients = new ArrayList<>();
-        String query = "SELECT * FROM patients WHERE patient_id LIKE ? OR full_name LIKE ? " +
+        String query = "SELECT * FROM patients WHERE patient_id LIKE ? OR first_name LIKE ? " +
                 "OR contact_number LIKE ? OR email LIKE ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -121,35 +125,46 @@ public class PatientDAO {
         }
         return null;
     }
-
     // Update patient
-    public static boolean updatePatient(String patientId, String fullName, String dateOfBirth,
-                                        String gender, String contact, String email,
-                                        String address, String emergencyContact, String bloodType) {
-        String query = "UPDATE patients SET full_name = ?, date_of_birth = ?, gender = ?, " +
-                "contact_number = ?, email = ?, address = ?, emergency_contact = ?, " +
-                "blood_type = ? WHERE patient_id = ?";
+    public static boolean updatePatient(Map<String, Object> patientData) {
+        String sql = "UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, gender = ?, date_of_birth = ?, contact_number = ?, email = ?, address = ? WHERE patient_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setString(1, fullName);
-            pstmt.setDate(2, Date.valueOf(dateOfBirth));
-            pstmt.setString(3, gender);
-            pstmt.setString(4, contact);
-            pstmt.setString(5, email);
-            pstmt.setString(6, address);
-            pstmt.setString(7, emergencyContact);
-            pstmt.setString(8, bloodType);
-            pstmt.setString(9, patientId);
+            pstmt.setString(1, (String) patientData.getOrDefault("first_name", ""));
+            pstmt.setString(2, (String) patientData.getOrDefault("middle_name", ""));
+            pstmt.setString(3, (String) patientData.getOrDefault("last_name", ""));
+            pstmt.setString(4, (String) patientData.getOrDefault("gender", ""));
 
-            return pstmt.executeUpdate() > 0;
+            // Handle date_of_birth
+            Object dobObj = patientData.get("date_of_birth"); // note key matches column name
+            if (dobObj instanceof LocalDate) {
+                pstmt.setDate(5, Date.valueOf((LocalDate) dobObj));
+            } else if (dobObj instanceof String) {
+                try {
+                    pstmt.setDate(5, Date.valueOf(LocalDate.parse((String) dobObj)));
+                } catch (DateTimeParseException ex) {
+                    pstmt.setDate(5, null);
+                }
+            } else {
+                pstmt.setDate(5, null);
+            }
+
+            pstmt.setString(6, (String) patientData.getOrDefault("contact_number", ""));
+            pstmt.setString(7, (String) patientData.getOrDefault("email", ""));
+            pstmt.setString(8, (String) patientData.getOrDefault("address", ""));
+            pstmt.setString(9, (String) patientData.get("patient_id"));
+
+            int rowsUpdated = pstmt.executeUpdate();
+            return rowsUpdated > 0;
 
         } catch (SQLException e) {
             System.err.println("Error updating patient: " + e.getMessage());
             return false;
         }
     }
+
 
     // Delete patient
     public static boolean deletePatient(String patientId) {
@@ -191,4 +206,6 @@ public class PatientDAO {
         }
         return "P001";
     }
+
+
 }
