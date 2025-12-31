@@ -4,15 +4,15 @@ import java.util.Properties;
 
 public class DatabaseConnection {
     private static final String URL = "jdbc:mysql://localhost:3306/HMS";
-    private static final String USERNAME = "root";
-    private static final String PASSWORD = "root";
+    private static final String USERNAME = Constants.USERNAME;
+    private static final String PASSWORD = Constants.PASSWORD;
     private static Connection connection = null;
     private static boolean isInitialized = false;
 
     // Static initializer to run setup once
-    static {
-        initializeDatabase();
-    }
+//    static {
+//        initializeDatabase();
+//    }
 
     private DatabaseConnection() {
         // Private constructor to prevent instantiation

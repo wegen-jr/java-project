@@ -11,7 +11,7 @@ public class AdminDAO {
     public static void loadTableData(String tableName, Vector<Vector<Object>> data, Vector<String> columnNames) {
         data.clear();
         columnNames.clear();
-        String sql = "SELECT * FROM " + tableName;
+        String sql = tableName.equals("authentication") ? "SELECT * FROM " + tableName + " WHERE role != 'ADMIN'" : "SELECT * FROM " + tableName;
 
         try (Connection conn = DatabaseConnection.getConnection();
              Statement stmt = conn.createStatement();
