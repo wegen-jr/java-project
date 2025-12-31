@@ -495,6 +495,7 @@ public class Doctor extends staffUser {
         table.getColumnModel().getColumn(0).setMaxWidth(0);
 
         // --- DOUBLE-CLICK ACTION ---
+        // --- DOUBLE-CLICK ACTION ---
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -504,9 +505,11 @@ public class Doctor extends staffUser {
                         int apptId = (int) table.getValueAt(row, 0);
                         String currentStatus = (String) table.getValueAt(row, 4);
 
-                        if (!"COMPLETED".equalsIgnoreCase(currentStatus)) {
-                            doctorDAO.updateAppointmentStatus(apptId, "Completed");
-                            loadData.run();
+                        // Check for "CONFIRMED" instead of "COMPLETED"
+                        if (!"CONFIRMED".equalsIgnoreCase(currentStatus)) {
+                            // Update the status in the database to "Confirmed"
+                            doctorDAO.updateAppointmentStatus(apptId, "Confirmed");
+                            loadData.run(); // Refresh the table
                         }
                     }
                 }
