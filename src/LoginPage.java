@@ -22,7 +22,7 @@ public class LoginPage extends JFrame {
         JPanel mainBackgroundPanel = new JPanel(new GridBagLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
-                super.paintCompoabrshiznent(g);
+                super.paintComponent(g);
                 g.drawImage(backgroundIcon.getImage(), 0, 0, getWidth(), getHeight(), this);
             }
         };
