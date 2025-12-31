@@ -4,10 +4,12 @@ import java.util.Properties;
 
 public class DatabaseConnection {
     private static final String URL = "jdbc:mysql://localhost:3306/HMS";
-    private static final String USERNAME = "abrshiz";
-    private static final String PASSWORD = "abrsh123";
+    private static final String USERNAME = "root";
+    private static final String PASSWORD = "root";
     private static Connection connection = null;
     private static boolean isInitialized = false;
+
+    // Static initializer to run setup once
     static {
         initializeDatabase();
     }
