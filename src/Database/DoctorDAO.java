@@ -94,8 +94,9 @@ public class DoctorDAO {
                 "CONCAT(p.first_name, ' ', p.middle_name, ' ', p.last_name) AS patient_name, " +
                 "l.test_type, l.priority, l.status, l.result_details " +
                 "FROM lab_requests l " +
-                "JOIN patients p ON l.patient_id = p.patient_id " +
+                "JOIN patients p ON l.patient_id COLLATE utf8mb4_unicode_ci = p.patient_id COLLATE utf8mb4_unicode_ci " +
                 "WHERE l.doctor_id = ?";
+
 
         try (Connection con = Database.DatabaseConnection.getConnection();
              PreparedStatement pst = con.prepareStatement(sql)) {
