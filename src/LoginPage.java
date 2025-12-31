@@ -148,6 +148,9 @@ public class LoginPage extends JFrame {
                         new Labratory(authId).showDashboard();
                         this.dispose();
                         break;
+                    case "PHARMACY":
+//                        new Pharmacy(authId).showDashboard();
+//                        break;
                     default:
                         JOptionPane.showMessageDialog(this, "Access Error: Unknown role '" + role + "'", "Error", JOptionPane.ERROR_MESSAGE);
                 }

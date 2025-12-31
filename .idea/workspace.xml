@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-<<<<<<< HEAD
     <list default="true" id="b6493669-58bd-4a9f-8d09-7d05883b0275" name="Changes" comment="" />
-=======
-    <list default="true" id="b6493669-58bd-4a9f-8d09-7d05883b0275" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/src/Database/DatabaseConnection.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Database/DatabaseConnection.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Database/DatabaseSetup.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Database/DatabaseSetup.java" afterDir="false" />
-    </list>
->>>>>>> c8e8af8 (Updated Doctor Class)
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -40,6 +33,7 @@
     "Application.Appointment.executor": "Run",
     "Application.Doctor.executor": "Run",
     "Application.LoginPage.executor": "Run",
+    "Application.Pharmacy.executor": "Run",
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
@@ -63,16 +57,25 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RunManager">
+    <configuration name="Pharmacy" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="Pharmacy" />
+      <module name="java-project" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Application.Pharmacy" />
+      </list>
+    </recent_temporary>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-<<<<<<< HEAD
         <option value="bundled-jdk-30f59d01ecdd-cffe25b9f5b3-intellij.indexing.shared.core-IU-253.28294.334" />
         <option value="bundled-js-predefined-d6986cc7102b-c7e53b3be11b-JavaScript-IU-253.28294.334" />
-=======
-        <option value="bundled-jdk-30f59d01ecdd-26cb7f24e5b0-intellij.indexing.shared.core-IU-253.29346.138" />
-        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-IU-253.29346.138" />
->>>>>>> c8e8af8 (Updated Doctor Class)
       </set>
     </attachedChunks>
   </component>
@@ -88,16 +91,10 @@
       <workItem from="1766687773243" duration="8631000" />
       <workItem from="1766699690811" duration="683000" />
       <workItem from="1766725446226" duration="3211000" />
-<<<<<<< HEAD
       <workItem from="1766731371602" duration="13355000" />
       <workItem from="1767213866846" duration="3139000" />
-=======
-      <workItem from="1766731371602" duration="26443000" />
-      <workItem from="1766774663649" duration="14126000" />
-      <workItem from="1766816384237" duration="4462000" />
-      <workItem from="1766828423996" duration="1971000" />
-      <workItem from="1767219479129" duration="357000" />
->>>>>>> c8e8af8 (Updated Doctor Class)
+      <workItem from="1767218756630" duration="1131000" />
+      <workItem from="1767220661518" duration="925000" />
     </task>
     <servers />
   </component>
