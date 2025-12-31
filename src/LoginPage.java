@@ -100,6 +100,7 @@ public class LoginPage extends JFrame {
             String inputUser = uNameField.getText();
             String inputPass = new String(passField.getPassword());
 
+            // 1. Validation Logic
             if (inputUser.isEmpty() || inputPass.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Username and Password required!");
                 return;
@@ -110,50 +111,48 @@ public class LoginPage extends JFrame {
                 return;
             }
 
+            // 2. Database Call
             Map<String, Object> userData = AuthenticationDAO.authenticateUser(inputUser, inputPass);
 
             if (userData != null) {
-                // 1. EXTRACT DATA FROM MAP
-                String role = ((String) userData.get("role")).trim();
-                String fullName = (String) userData.get("full_name");
+                // 3. DATA EXTRACTION
+                // We use String.valueOf() to safely handle the objects from the Map
+                String role = (userData.get("role") != null) ? userData.get("role").toString().trim() : "";
+                String fullName = (userData.get("full_name") != null) ? userData.get("full_name").toString() : "Unknown User";
 
-                // This extracts the ID from the database result to pass to the Doctor class
-                int authId = (int) userData.get("auth_id");
+                // Ensure auth_id exists to avoid NullPointerException
+                int authId = 0;
+                if (userData.get("auth_id") != null) {
+                    authId = Integer.parseInt(userData.get("auth_id").toString());
+                }
 
+                // 4. SUCCESS POPUP
+                // This will now show the actual name from the 'full_name' column in your DB
                 JOptionPane.showMessageDialog(this, "Login Successful!\nWelcome " + fullName);
 
-                // 2. RESTORED SWITCH STATEMENTS
+                // 5. ROLE-BASED NAVIGATION (Design Preserved)
                 switch (role.toUpperCase()) {
                     case "DOCTOR":
-                        // Now we pass the real authId extracted from the database
                         new Doctor(authId).showDashboard();
                         this.dispose();
                         break;
-
                     case "RECEPTIONIST":
                         new receptionist(fullName).showDashboard();
                         this.dispose();
                         break;
-
                     case "ADMIN":
                         // new Admin(authId).showDashboard();
                         this.dispose();
                         break;
-
-                    case "PHARMACIST":
-                        // new Pharmacist(authId).showDashboard();
-                        this.dispose();
-                        break;
-
                     case "LABTECHNICIAN":
                         new Labratory(authId).showDashboard();
                         this.dispose();
                         break;
-
                     default:
-                        JOptionPane.showMessageDialog(this, "Unknown role: " + role, "Access Error", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(this, "Access Error: Unknown role '" + role + "'", "Error", JOptionPane.ERROR_MESSAGE);
                 }
             } else {
+                // 6. FAILURE FEEDBACK
                 JOptionPane.showMessageDialog(this, "Invalid credentials", "Login Failed", JOptionPane.ERROR_MESSAGE);
             }
         });

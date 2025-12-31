@@ -48,7 +48,10 @@ public class AuthenticationDAO {
                     case "ADMIN":
                         fullName = getAdminName(conn, authId);
                         break;
-                }
+                    case "LABTECHNICIAN":
+                            fullName= getLabTechName(conn,authId);
+                        break;
+                        }
 
                 if (fullName != null) {
                     userData.put("full_name", fullName);
@@ -87,6 +90,25 @@ public class AuthenticationDAO {
         }
         return null;
     }
+    private static String getLabTechName(Connection conn, int authId) throws SQLException {
+        // Note: Adjust table name if your technician details are in a different table
+        String query = "SELECT first_name, last_name FROM laboratory_technician WHERE auth_id = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(query)) {
+            ps.setInt(1, authId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String firstName = rs.getString("first_name");
+                    String lastName = rs.getString("last_name");
+
+                    // Returns combined name (e.g., "Abera doa")
+                    return (firstName != null ? firstName : "") +
+                            (lastName != null ? " " + lastName : "");
+                }
+            }
+        }
+        return null; // Return null if technician is not found
+    }
 
     // Helper: Get receptionist full name (create receptionists table similarly)
     private static String getReceptionistName(Connection conn, int authId) throws SQLException {
@@ -112,6 +134,27 @@ public class AuthenticationDAO {
             }
         }
         return null;
+    }
+    public static String validateLoginAndGetName(String username, String password) {
+        // Exact SQL for your HMS Authentication table structure
+        String sql = "SELECT full_name FROM authentication WHERE username = ? AND password = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                // This returns the string from the 'full_name' column
+                return rs.getString("full_name");
+            }
+        } catch (SQLException e) {
+            System.err.println("Login Error: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return null; // Return null if no match found
     }
 
     /**

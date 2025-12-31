@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Labratory extends staffUser {
+    private int authId;
     private JFrame frame;
     private JPanel cardPanel;
     private CardLayout cardLayout;
@@ -19,8 +20,8 @@ public class Labratory extends staffUser {
     private JLabel animatedGreeting, animatedTimer;
     private String fullName;
     private Font navFont = new Font("SansSerif", Font.BOLD, 13);
-    private final Color MATCHED_HOVER = new Color(12, 58, 81);
 
+    private final Color MATCHED_HOVER = new Color(12, 58, 81);
     private final Color NAVY = new Color(2, 48, 71);
     private final Color HOVER_BLUE = new Color(33, 158, 188);
     private final Color SIDEBAR_BG = new Color(2, 48, 71);
@@ -28,12 +29,20 @@ public class Labratory extends staffUser {
     private final Color GLASS_WHITE = new Color(255, 255, 255, 235);
     private final Color ACCENT_GOLD = new Color(255, 183, 3);
 
+    // FIXED CONSTRUCTOR
+    public Labratory(int authId) {
+        this.authId = authId;
+        updateWorkCounts();
+    }
+
     @Override
     public void showDashboard() {
-        try {
-            this.fullName = LabratoryDAO.getFullNameByUsername(this.usename);
-        } catch (Exception e) { this.fullName = "Staff Member"; }
-        if (this.fullName == null) this.fullName = "Staff Member";
+        // FETCH DATA FIRST SO VARIABLES ARE READY FOR YOUR DESIGN
+        Map<String, String> data = LabratoryDAO.getTechnicianProfile(this.authId);
+        if (data != null) {
+            this.fullName = data.getOrDefault("full_name", "Staff Member");
+            this.usename = data.getOrDefault("username", "User");
+        }
 
         frame = new JFrame("HMS - Clinical Laboratory Portal");
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -42,6 +51,12 @@ public class Labratory extends staffUser {
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
         cardPanel.setOpaque(false);
+
+        cardPanel.add(createDashboardBody(), "DASHBOARD");
+        cardPanel.add(createProfileBody(), "PROFILE");
+        cardPanel.add(createActiveRequestsBody(), "ACTIVE_REQUESTS");
+        cardPanel.add(createLabResponseBody(), "LAB_RESPONSE");
+        cardPanel.add(createHistoryBody(), "HISTORY");
 
         JPanel mainContainer = new JPanel(new BorderLayout()) {
             @Override
@@ -59,13 +74,11 @@ public class Labratory extends staffUser {
             }
         };
 
-        cardPanel.add(createDashboardBody(), "DASHBOARD");
-        cardPanel.add(createProfileBody(), "PROFILE");
         mainContainer.add(createSidebar(), BorderLayout.WEST);
         mainContainer.add(cardPanel, BorderLayout.CENTER);
         frame.add(mainContainer);
-        startAnimations();
 
+        startAnimations();
         frame.setVisible(true);
     }
 
@@ -74,6 +87,7 @@ public class Labratory extends staffUser {
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         p.setBackground(SIDEBAR_BG);
         p.setPreferredSize(new Dimension(260, 0));
+
         JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 20));
         titlePanel.setOpaque(false);
         JLabel portalHeader = new JLabel("LAB SYSTEM");
@@ -87,11 +101,13 @@ public class Labratory extends staffUser {
         titlePanel.add(portalHeader);
         p.add(titlePanel);
         p.add(Box.createVerticalStrut(10));
+
         p.add(createNavItem("Dashboard", "assets/dashboard.png", e -> cardLayout.show(cardPanel, "DASHBOARD")));
-        p.add(createNavItem("Active Requests", "assets/observation.png", e -> showLabRequestsDashboard()));
-        p.add(createNavItem("Lab Response", "assets/update.png", e -> showLabResponseWindow()));
+        p.add(createNavItem("Active Requests", "assets/observation.png", e -> cardLayout.show(cardPanel, "ACTIVE_REQUESTS")));
+        p.add(createNavItem("Lab Response", "assets/update.png", e -> cardLayout.show(cardPanel, "LAB_RESPONSE")));
         p.add(createNavItem("My Profile", "assets/user.png", e -> cardLayout.show(cardPanel, "PROFILE")));
-        p.add(createNavItem("Request History", "assets/history.jpg", e -> showHistoryWindow()));
+        p.add(createNavItem("Request History", "assets/history.jpg", e -> cardLayout.show(cardPanel, "HISTORY")));
+
         p.add(Box.createVerticalGlue());
         JPanel logoutWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
         logoutWrapper.setOpaque(false);
@@ -105,97 +121,457 @@ public class Labratory extends staffUser {
         return p;
     }
 
-    private JPanel createProfileBody() {
-        Map<String, String> data = LabratoryDAO.getTechnicianProfile(this.usename);
-        if (data == null) data = new HashMap<>();
-        JPanel centerWrapper = new JPanel(new GridBagLayout());
-        centerWrapper.setOpaque(false);
-        JPanel masterCard = new JPanel(new BorderLayout());
-        masterCard.setPreferredSize(new Dimension(850, 550));
-        masterCard.setBackground(GLASS_WHITE);
-        masterCard.setBorder(new LineBorder(new Color(200, 200, 200), 1, true));
-        JPanel identityPanel = new JPanel();
-        identityPanel.setLayout(new BoxLayout(identityPanel, BoxLayout.Y_AXIS));
-        identityPanel.setBackground(NAVY);
-        identityPanel.setPreferredSize(new Dimension(300, 550));
-        identityPanel.add(Box.createVerticalStrut(50));
-        JLabel avatar = new JLabel();
-        avatar.setAlignmentX(Component.CENTER_ALIGNMENT);
-        try {
-            avatar.setIcon(new ImageIcon(new ImageIcon("assets/user.png").getImage().getScaledInstance(120, 120, Image.SCALE_SMOOTH)));
-            avatar.setBorder(new LineBorder(Color.WHITE, 3, true));
-        } catch(Exception e) { avatar.setText("USER"); }
-        identityPanel.add(avatar);
-        identityPanel.add(Box.createVerticalStrut(20));
-        JLabel nameLbl = new JLabel(data.getOrDefault("full_name", fullName));
-        nameLbl.setFont(new Font("SansSerif", Font.BOLD, 22));
-        nameLbl.setForeground(Color.WHITE);
-        nameLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-        identityPanel.add(nameLbl);
-        JLabel posLbl = new JLabel("Laboratory Technician");
-        posLbl.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        posLbl.setForeground(HOVER_BLUE);
-        posLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-        identityPanel.add(posLbl);
-        identityPanel.add(Box.createVerticalStrut(40));
-        identityPanel.add(createBadge("CERTIFIED", SUCCESS_GREEN));
-        identityPanel.add(Box.createVerticalStrut(10));
-        identityPanel.add(createBadge("ACTIVE DUTY", ACCENT_GOLD));
-        JPanel dataPanel = new JPanel();
-        dataPanel.setLayout(new BoxLayout(dataPanel, BoxLayout.Y_AXIS));
-        dataPanel.setOpaque(false);
-        dataPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
-        JLabel title = new JLabel("Professional Information");
+    // 1. ADD THIS FIELD TO YOUR CLASS
+    // Ensure this is declared at the top of your class, not inside the method
+    private Timer autoRefreshTimer;
+
+    private JPanel createActiveRequestsBody() {
+        JPanel container = new JPanel(new BorderLayout());
+        container.setOpaque(false);
+        container.setBorder(new EmptyBorder(30, 40, 40, 40));
+
+        // 1. Updated Column Names to include Doctor's Notes
+        String[] colNames = {"ACCESS-ID", "PATIENT NAME", "REQUESTED ANALYSIS", "DOCTOR'S NOTES", "PRIORITY LEVEL", "STATUS"};
+
+        DefaultTableModel model = new DefaultTableModel(colNames, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+
+        // 2. LIVE REFRESH LOGIC
+        refreshQueueData(model);
+
+        if (autoRefreshTimer != null && autoRefreshTimer.isRunning()) {
+            autoRefreshTimer.stop();
+        }
+
+        autoRefreshTimer = new Timer(5000, e -> {
+            if (container.isShowing()) {
+                refreshQueueData(model);
+                updateWorkCounts();
+            }
+        });
+        autoRefreshTimer.start();
+
+        // 3. TABLE SETUP (Design untouched)
+        JTable table = new JTable(model);
+        table.setRowHeight(52);
+        table.setShowGrid(false);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.getTableHeader().setReorderingAllowed(false);
+
+        applyProfessionalQueueUI(table);
+
+        // Set specific width for Notes if needed (optional, design-safe)
+        table.getColumnModel().getColumn(3).setPreferredWidth(200);
+
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(new LineBorder(new Color(220, 220, 220), 1, true));
+        scroll.getViewport().setBackground(Color.WHITE);
+
+        // 4. HEADER SECTION (Design untouched)
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        topPanel.setBorder(new EmptyBorder(0, 0, 15, 0));
+
+        JLabel title = new JLabel("Live Diagnostic Queue");
+        title.setFont(new Font("SansSerif", Font.BOLD, 22));
+        title.setForeground(NAVY);
+
+        JLabel subtitle = new JLabel("● LIVE • Monitoring incoming laboratory requests");
+        subtitle.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        subtitle.setForeground(new Color(42, 157, 143));
+
+        topPanel.add(title, BorderLayout.NORTH);
+        topPanel.add(subtitle, BorderLayout.SOUTH);
+
+        container.add(topPanel, BorderLayout.NORTH);
+        container.add(scroll, BorderLayout.CENTER);
+
+        return container;
+    }
+
+    /**
+     * Syncs the table with the database including the new Notes column
+     */
+    private void refreshQueueData(DefaultTableModel model) {
+        // 1. Fetch data using the corrected method above
+        List<Object[]> requests = LabratoryDAO.getPendingRequests();
+
+        // 2. Clear table to prevent duplicates
+        model.setRowCount(0);
+
+        if (requests != null && !requests.isEmpty()) {
+            for (Object[] r : requests) {
+                // Add the row directly - it already contains the 6 columns
+                model.addRow(r);
+            }
+        } else {
+            // Optional: Debugging line to see if data is actually coming through
+            System.out.println("No 'Pending' requests found in database.");
+        }
+    }
+    private void applyProfessionalQueueUI(JTable table) {
+        // Modern Navy Header
+        table.getTableHeader().setBackground(new Color(2, 48, 71));
+        table.getTableHeader().setForeground(Color.WHITE);
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+        table.getTableHeader().setPreferredSize(new Dimension(0, 45));
+        table.getTableHeader().setBorder(null);
+
+        DefaultTableCellRenderer cellRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
+                label.setBorder(new EmptyBorder(0, 15, 0, 15)); // Padding
+                label.setOpaque(true);
+
+                // Zebra Striping
+                if (!s) {
+                    label.setBackground(r % 2 == 0 ? Color.WHITE : new Color(248, 249, 250));
+                } else {
+                    label.setBackground(new Color(33, 158, 188, 40)); // Highlight blue
+                }
+
+                String val = (v != null) ? v.toString() : "";
+
+                // 1. Column: PATIENT NAME (Bold for realism)
+                if (c == 1) {
+                    label.setFont(new Font("SansSerif", Font.BOLD, 13));
+                    label.setForeground(new Color(2, 48, 71));
+                }
+                // 2. Column: DOCTOR'S NOTES (Italicized, gray)
+                else if (c == 3) {
+                    label.setFont(new Font("SansSerif", Font.ITALIC, 12));
+                    label.setForeground(Color.GRAY);
+                }
+                // 3. Column: PRIORITY (Realistic color alerts)
+                else if (c == 4) {
+                    label.setFont(new Font("SansSerif", Font.BOLD, 12));
+                    String p = val.toUpperCase();
+                    if (p.contains("EMERGENCY")) {
+                        label.setForeground(new Color(230, 57, 70)); // Deep Red
+                        label.setText("🚨 " + p);
+                    } else if (p.contains("URGENT")) {
+                        label.setForeground(new Color(255, 183, 3)); // Orange/Gold
+                        label.setText("⚠ " + p);
+                    } else {
+                        label.setForeground(new Color(42, 157, 143)); // Calm Teal
+                        label.setText("✓ " + p);
+                    }
+                }
+                // 4. Column: STATUS (Badge style)
+                else if (c == 5) {
+                    label.setHorizontalAlignment(SwingConstants.CENTER);
+                    label.setFont(new Font("SansSerif", Font.BOLD, 11));
+                    label.setForeground(new Color(33, 158, 188)); // Theme Blue
+                    label.setText("◌ " + val.toUpperCase());
+                } else {
+                    label.setForeground(new Color(60, 60, 60));
+                    label.setFont(new Font("SansSerif", Font.PLAIN, 13));
+                }
+
+                return label;
+            }
+        };
+
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setCellRenderer(cellRenderer);
+        }
+    }
+
+
+
+    private JPanel createLabResponseBody() {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setOpaque(false);
+
+        // --- LEFT NAVIGATION: THE WORK QUEUE ---
+        JPanel leftNav = new JPanel(new BorderLayout());
+        leftNav.setPreferredSize(new Dimension(400, 0));
+        leftNav.setBackground(Color.WHITE);
+        leftNav.setBorder(new MatteBorder(0, 0, 0, 1, new Color(230, 230, 230)));
+
+        JPanel navHeader = new JPanel(new BorderLayout());
+        navHeader.setBackground(new Color(248, 249, 252));
+        navHeader.setBorder(new EmptyBorder(20, 25, 20, 25));
+        JLabel navTitle = new JLabel("INCOMING SAMPLES");
+        navTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
+        navTitle.setForeground(new Color(120, 130, 140));
+        navHeader.add(navTitle, BorderLayout.WEST);
+        leftNav.add(navHeader, BorderLayout.NORTH);
+
+        String[] cols = {"ID", "PATIENT", "ANALYSIS TYPE"};
+        DefaultTableModel navModel = new DefaultTableModel(cols, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+
+        JTable navTable = new JTable(navModel);
+        navTable.setRowHeight(60);
+        navTable.setShowGrid(false);
+        navTable.setSelectionBackground(new Color(235, 245, 255));
+        navTable.setSelectionForeground(new Color(2, 48, 71));
+        navTable.setFocusable(false);
+
+        upgradeTableUI(navTable);
+
+        // Initial Data Fetch
+        List<Object[]> pendingList = LabratoryDAO.getPendingRequests();
+        if (pendingList != null) for(Object[] r : pendingList) navModel.addRow(new Object[]{r[0], r[1], r[2]});
+
+        JScrollPane navScroll = new JScrollPane(navTable);
+        navScroll.setBorder(null);
+        navScroll.getViewport().setBackground(Color.WHITE);
+        leftNav.add(navScroll, BorderLayout.CENTER);
+
+        // --- RIGHT PANEL: THE DIAGNOSTIC WORKBENCH ---
+        JPanel entryPanel = new JPanel(new GridBagLayout());
+        entryPanel.setBackground(new Color(242, 244, 248));
+
+        JPanel entryCard = new JPanel(new BorderLayout());
+        entryCard.setBackground(Color.WHITE);
+        entryCard.setPreferredSize(new Dimension(650, 650));
+        entryCard.setBorder(new LineBorder(new Color(220, 220, 220), 1, true));
+
+        JPanel cardHead = new JPanel(new GridBagLayout());
+        cardHead.setBackground(new Color(2, 48, 71));
+        cardHead.setBorder(new EmptyBorder(25, 35, 25, 35));
+        GridBagConstraints hg = new GridBagConstraints();
+        hg.fill = GridBagConstraints.HORIZONTAL; hg.weightx = 1.0;
+
+        JLabel cardTitle = new JLabel("SELECT A SAMPLE TO START");
+        cardTitle.setForeground(Color.WHITE);
+        cardTitle.setFont(new Font("SansSerif", Font.BOLD, 18));
+
+        JLabel cardSubtitle = new JLabel("Current Procedure: Waiting for selection...");
+        cardSubtitle.setForeground(new Color(180, 190, 200));
+        cardSubtitle.setFont(new Font("SansSerif", Font.PLAIN, 12));
+
+        hg.gridy=0; cardHead.add(cardTitle, hg);
+        hg.gridy=1; cardHead.add(cardSubtitle, hg);
+        entryCard.add(cardHead, BorderLayout.NORTH);
+
+        JPanel fieldBody = new JPanel(new GridBagLayout());
+        fieldBody.setBackground(Color.WHITE);
+        fieldBody.setBorder(new EmptyBorder(40, 60, 40, 60));
+        GridBagConstraints g = new GridBagConstraints();
+        g.fill = GridBagConstraints.HORIZONTAL; g.weightx = 1.0; g.insets = new Insets(10,0,10,0);
+
+        JTextField valField = new JTextField();
+        valField.setPreferredSize(new Dimension(0, 45));
+        JTextArea noteArea = new JTextArea(5, 20);
+        noteArea.setLineWrap(true);
+        JScrollPane noteScroll = new JScrollPane(noteArea);
+        JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Normal", "Abnormal", "Critical / Urgent"});
+        statusCombo.setPreferredSize(new Dimension(0, 45));
+
+        g.gridy=0; fieldBody.add(createStyledLabel("QUANTITATIVE VALUE (e.g., 14.2 g/dL)"), g);
+        g.gridy=1; fieldBody.add(valField, g);
+        g.gridy=2; fieldBody.add(createStyledLabel("PATHOLOGIST'S OBSERVATIONS / REMARKS"), g);
+        g.gridy=3; fieldBody.add(noteScroll, g);
+        g.gridy=4; fieldBody.add(createStyledLabel("CLINICAL CONCLUSION"), g);
+        g.gridy=5; fieldBody.add(statusCombo, g);
+        entryCard.add(fieldBody, BorderLayout.CENTER);
+
+        JButton submitBtn = new JButton("FINALIZE & VALIDATE RESULT");
+        submitBtn.setFocusPainted(false);
+        submitBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        submitBtn.setBackground(new Color(42, 157, 143));
+        submitBtn.setForeground(Color.WHITE);
+        submitBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        submitBtn.setPreferredSize(new Dimension(0, 70));
+        submitBtn.setBorder(null);
+
+        // --- BUTTON LOGIC ---
+        submitBtn.addActionListener(e -> {
+            int selectedRow = navTable.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(null, "Please select a sample from the list first.");
+                return;
+            }
+
+            String requestId = navModel.getValueAt(selectedRow, 0).toString();
+            String resultDetails = String.format("Value: %s | Remarks: %s | Conclusion: %s",
+                    valField.getText(), noteArea.getText(), statusCombo.getSelectedItem());
+
+            // Update Database via DAO
+            if (LabratoryDAO.submitLabResult(requestId, resultDetails)) {
+                JOptionPane.showMessageDialog(null, "Diagnostic verified and sent to doctor.");
+                updateWorkCounts();
+                // UI Refresh
+                navModel.removeRow(selectedRow); // Remove from queue
+                valField.setText("");
+                noteArea.setText("");
+                cardTitle.setText("SELECT A SAMPLE TO START");
+                cardSubtitle.setText("Current Procedure: Waiting...");
+
+                // Update Stat Cards (SYSTEM LOGS)
+                updateWorkCounts();
+            }
+        });
+
+        submitBtn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) { submitBtn.setBackground(new Color(36, 135, 123)); }
+            public void mouseExited(java.awt.event.MouseEvent evt) { submitBtn.setBackground(new Color(42, 157, 143)); }
+        });
+
+        entryCard.add(submitBtn, BorderLayout.SOUTH);
+        entryPanel.add(entryCard);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftNav, entryPanel);
+        split.setDividerLocation(400);
+        split.setDividerSize(1);
+        split.setBorder(null);
+        mainPanel.add(split, BorderLayout.CENTER);
+
+        navTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && navTable.getSelectedRow() != -1) {
+                cardTitle.setText(navTable.getValueAt(navTable.getSelectedRow(), 1).toString().toUpperCase());
+                cardSubtitle.setText("Current Procedure: " + navTable.getValueAt(navTable.getSelectedRow(), 2).toString());
+            }
+        });
+
+        return mainPanel;
+    }
+
+    private JLabel createStyledLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("SansSerif", Font.BOLD, 11));
+        label.setForeground(new Color(100, 110, 120));
+        return label;
+    }
+    // Add this field to your class if not already present
+    private Timer historyRefreshTimer;
+
+    private JPanel createHistoryBody() {
+        JPanel container = new JPanel(new BorderLayout());
+        container.setOpaque(false);
+        container.setBorder(new EmptyBorder(30, 40, 40, 40));
+
+        // Realistic Medical Headers
+        String[] cols = {"REFERENCE ID", "PATIENT IDENTITY", "LABORATORY TEST", "FINAL STATUS", "VERIFIED DATE"};
+
+        // 1. STRICTLY UNEDITABLE MODEL
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        // 2. LIVE REFRESH LOGIC
+        // Initial data load
+        refreshHistoryData(model);
+
+        // Stop any existing timer to prevent duplicates
+        if (historyRefreshTimer != null && historyRefreshTimer.isRunning()) {
+            historyRefreshTimer.stop();
+        }
+
+        // Set to 5 or 10 seconds for a "Live" feel
+        historyRefreshTimer = new Timer(5000, e -> {
+            if (container.isShowing()) {
+                refreshHistoryData(model);
+            }
+        });
+        historyRefreshTimer.start();
+
+        // 3. TABLE SETUP (Design untouched)
+        JTable table = new JTable(model);
+        table.setRowHeight(50);
+        table.setShowGrid(false);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setFillsViewportHeight(true);
+        table.getTableHeader().setReorderingAllowed(false);
+
+        applyRealisticTableUI(table);
+
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(new LineBorder(new Color(230, 230, 230), 1, true));
+        scroll.getViewport().setBackground(Color.WHITE);
+
+        // 4. HEADER SECTION (Design untouched)
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setOpaque(false);
+        headerPanel.setBorder(new EmptyBorder(0, 0, 20, 0));
+
+        JLabel title = new JLabel("Completed Lab Archives");
         title.setFont(new Font("SansSerif", Font.BOLD, 24));
         title.setForeground(NAVY);
-        dataPanel.add(title);
-        dataPanel.add(Box.createVerticalStrut(30));
-        JPanel grid = new JPanel(new GridLayout(3, 2, 20, 30));
-        grid.setOpaque(false);
-        grid.add(createDetailBox("STAFF ID", data.getOrDefault("id", "LAB-000")));
-        grid.add(createDetailBox("CERTIFICATION", data.getOrDefault("license", "Standard")));
-        grid.add(createDetailBox("USERNAME", usename));
-        grid.add(createDetailBox("CONTACT", data.getOrDefault("phone", "N/A")));
-        grid.add(createDetailBox("DEPARTMENT", data.getOrDefault("department","Clinical Pathology")));
-        grid.add(createDetailBox("EMAIL", usename + "@hospital.org"));
-        dataPanel.add(grid);
-        dataPanel.add(Box.createVerticalGlue());
-        JButton editBtn = new JButton("Update Information");
-        editBtn.setFocusPainted(false);
-        editBtn.setBackground(NAVY);
-        editBtn.setForeground(Color.WHITE);
-        dataPanel.add(editBtn);
-        masterCard.add(identityPanel, BorderLayout.WEST);
-        masterCard.add(dataPanel, BorderLayout.CENTER);
-        centerWrapper.add(masterCard);
-        return centerWrapper;
+
+        // Visual "Live" indicator in the subtitle
+        JLabel subtitle = new JLabel("● LIVE • Read-only records of verified diagnostic results");
+        subtitle.setFont(new Font("SansSerif", Font.ITALIC, 13));
+        subtitle.setForeground(new Color(42, 157, 143)); // Professional green
+
+        headerPanel.add(title, BorderLayout.NORTH);
+        headerPanel.add(subtitle, BorderLayout.SOUTH);
+
+        container.add(headerPanel, BorderLayout.NORTH);
+        container.add(scroll, BorderLayout.CENTER);
+
+        return container;
     }
 
-    private JPanel createDetailBox(String label, String value) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setOpaque(false);
-        JLabel l = new JLabel(label);
-        l.setFont(new Font("SansSerif", Font.BOLD, 10));
-        l.setForeground(Color.GRAY);
-        JLabel v = new JLabel(value);
-        v.setFont(new Font("SansSerif", Font.PLAIN, 15));
-        v.setForeground(Color.BLACK);
-        p.add(l, BorderLayout.NORTH);
-        p.add(v, BorderLayout.CENTER);
-        p.setBorder(new MatteBorder(0, 0, 1, 0, new Color(230, 230, 230)));
-        return p;
+
+    private void refreshHistoryData(DefaultTableModel model) {
+        List<Object[]> history = LabratoryDAO.getFullLabArchive();
+
+        // Wipe and reload to ensure the UI stays in sync with DB
+        model.setRowCount(0);
+
+        if (history != null) {
+            for (Object[] r : history) {
+                // FILTER: Only add rows where status matches 'Completed'
+                if (r.length >= 4 && r[3] != null && r[3].toString().equalsIgnoreCase("Completed")) {
+                    model.addRow(r);
+                }
+            }
+        }
     }
 
-    private JLabel createBadge(String text, Color color) {
-        JLabel b = new JLabel(text, SwingConstants.CENTER);
-        b.setFont(new Font("SansSerif", Font.BOLD, 10));
-        b.setOpaque(true);
-        b.setBackground(color);
-        b.setForeground(Color.WHITE);
-        b.setMaximumSize(new Dimension(100, 25));
-        b.setAlignmentX(Component.CENTER_ALIGNMENT);
-        b.setBorder(new EmptyBorder(5, 10, 5, 10));
-        return b;
+    // Specialized realistic UI method
+    private void applyRealisticTableUI(JTable table) {
+        // Header Styling
+        table.getTableHeader().setBackground(NAVY);
+        table.getTableHeader().setForeground(Color.WHITE);
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
+        table.getTableHeader().setPreferredSize(new Dimension(0, 45));
+
+        // Cell Styling
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
+
+                // Professional padding
+                label.setBorder(new EmptyBorder(0, 20, 0, 20));
+
+                // Zebra Striping
+                if (!s) {
+                    label.setBackground(r % 2 == 0 ? Color.WHITE : new Color(242, 245, 248));
+                } else {
+                    label.setBackground(new Color(33, 158, 188, 30));
+                    label.setForeground(NAVY);
+                }
+
+                // Realistic Status Styling
+                if (c == 3) { // STATUS COLUMN
+                    label.setText(" ● " + v.toString().toUpperCase());
+                    label.setForeground(SUCCESS_GREEN);
+                    label.setFont(new Font("SansSerif", Font.BOLD, 11));
+                } else {
+                    label.setForeground(new Color(70, 70, 70));
+                    label.setFont(new Font("SansSerif", Font.PLAIN, 13));
+                }
+
+                return label;
+            }
+        };
+
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        }
     }
 
     private JPanel createDashboardBody() {
@@ -242,6 +618,132 @@ public class Labratory extends staffUser {
         return val;
     }
 
+    private JPanel createProfileBody() {
+        Map<String, String> data = LabratoryDAO.getTechnicianProfile(this.authId);
+        if (data == null) data = new HashMap<>();
+
+        JPanel centerWrapper = new JPanel(new GridBagLayout());
+        centerWrapper.setOpaque(false);
+
+        // Main Card
+        JPanel masterCard = new JPanel(new BorderLayout());
+        masterCard.setPreferredSize(new Dimension(950, 600)); // Increased width to prevent text clipping
+        masterCard.setBackground(new Color(255, 255, 255, 240));
+        masterCard.setBorder(new LineBorder(new Color(220, 220, 220), 1, true));
+
+        // --- LEFT PANEL (NAVY) ---
+        JPanel identityPanel = new JPanel();
+        identityPanel.setLayout(new BoxLayout(identityPanel, BoxLayout.Y_AXIS));
+        identityPanel.setBackground(new Color(2, 48, 71)); // Your exact Navy
+        identityPanel.setPreferredSize(new Dimension(320, 600));
+        identityPanel.add(Box.createVerticalStrut(60));
+
+        JLabel avatar = new JLabel();
+        avatar.setAlignmentX(Component.CENTER_ALIGNMENT);
+        try {
+            ImageIcon icon = new ImageIcon("assets/user.png");
+            Image img = icon.getImage().getScaledInstance(140, 140, Image.SCALE_SMOOTH);
+            avatar.setIcon(new ImageIcon(img));
+            avatar.setBorder(new LineBorder(Color.WHITE, 2, true));
+        } catch(Exception e) { avatar.setText("USER"); }
+
+        identityPanel.add(avatar);
+        identityPanel.add(Box.createVerticalStrut(25));
+
+        JLabel nameLbl = new JLabel(this.fullName != null ? this.fullName : "Yeabsira Abebe");
+        nameLbl.setFont(new Font("SansSerif", Font.BOLD, 26));
+        nameLbl.setForeground(Color.WHITE);
+        nameLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        identityPanel.add(nameLbl);
+
+        JLabel posLbl = new JLabel(data.getOrDefault("job_title", "Senior Laboratory Technician"));
+        posLbl.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        posLbl.setForeground(new Color(33, 158, 188)); // HOVER_BLUE
+        posLbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        identityPanel.add(posLbl);
+
+        identityPanel.add(Box.createVerticalStrut(40));
+        identityPanel.add(createBadge("CERTIFIED", new Color(42, 157, 143)));
+        identityPanel.add(Box.createVerticalStrut(10));
+        identityPanel.add(createBadge("ACTIVE DUTY", new Color(255, 183, 3)));
+
+        identityPanel.add(Box.createVerticalGlue());
+
+        // --- RIGHT PANEL (CONTENT) ---
+        JPanel dataPanel = new JPanel();
+        dataPanel.setLayout(new BoxLayout(dataPanel, BoxLayout.Y_AXIS));
+        dataPanel.setOpaque(false);
+        dataPanel.setBorder(new EmptyBorder(50, 60, 50, 60));
+
+        // Header section with proper alignment to prevent subtitle cut-off
+        JPanel headerArea = new JPanel(new GridLayout(2, 1, 0, 5));
+        headerArea.setOpaque(false);
+        headerArea.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+        headerArea.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel title = new JLabel("Personal Information");
+        title.setFont(new Font("SansSerif", Font.BOLD, 36));
+        title.setForeground(new Color(2, 48, 71));
+
+        JLabel subtitle = new JLabel("Official personnel record and verification details");
+        subtitle.setFont(new Font("SansSerif", Font.ITALIC, 14));
+        subtitle.setForeground(Color.GRAY);
+
+        headerArea.add(title);
+        headerArea.add(subtitle);
+        dataPanel.add(headerArea);
+
+        dataPanel.add(Box.createVerticalStrut(50));
+
+        // Info Grid
+        JPanel grid = new JPanel(new GridLayout(3, 2, 40, 45));
+        grid.setOpaque(false);
+        grid.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        grid.add(createDetailBox("STAFF IDENTIFICATION", data.getOrDefault("id", "1")));
+        grid.add(createDetailBox("MEDICAL LICENSE", data.getOrDefault("license", "Masters")));
+        grid.add(createDetailBox("SYSTEM USERNAME", this.usename != null ? this.usename : "yabu"));
+        grid.add(createDetailBox("CONTACT EXTENSION", data.getOrDefault("phone", "+251969631190")));
+        grid.add(createDetailBox("DEPARTMENT", data.getOrDefault("department","Hematology")));
+        grid.add(createDetailBox("INSTITUTIONAL EMAIL", data.getOrDefault("email", "yabu@hospital.com")));
+
+        dataPanel.add(grid);
+        dataPanel.add(Box.createVerticalGlue());
+
+        masterCard.add(identityPanel, BorderLayout.WEST);
+        masterCard.add(dataPanel, BorderLayout.CENTER);
+        centerWrapper.add(masterCard);
+
+        return centerWrapper;
+    }
+
+    private JPanel createDetailBox(String label, String value) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        JLabel l = new JLabel(label);
+        l.setFont(new Font("SansSerif", Font.BOLD, 10));
+        l.setForeground(Color.GRAY);
+        JLabel v = new JLabel(value);
+        v.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        v.setForeground(Color.BLACK);
+        p.add(l, BorderLayout.NORTH);
+        p.add(v, BorderLayout.CENTER);
+        p.setBorder(new MatteBorder(0, 0, 1, 0, new Color(230, 230, 230)));
+        return p;
+    }
+
+    private JLabel createBadge(String text, Color color) {
+        JLabel b = new JLabel(text, SwingConstants.CENTER);
+        b.setFont(new Font("SansSerif", Font.BOLD, 10));
+        b.setOpaque(true);
+        b.setBackground(color);
+        b.setForeground(Color.WHITE);
+        b.setMaximumSize(new Dimension(100, 25));
+        b.setAlignmentX(Component.CENTER_ALIGNMENT);
+        b.setBorder(new EmptyBorder(5, 10, 5, 10));
+        return b;
+    }
+
     private JPanel createNavItem(String text, String iconPath, ActionListener action) {
         JPanel item = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 12));
         item.setOpaque(false);
@@ -281,217 +783,6 @@ public class Labratory extends staffUser {
         return item;
     }
 
-    void showLabResponseWindow() {
-        JFrame win = new JFrame("Laboratory Information System - Result Entry");
-        win.setSize(1200, 750);
-        win.setLocationRelativeTo(frame);
-
-        // --- LEFT NAVIGATION PANEL (Patient Selection) ---
-        JPanel leftNav = new JPanel(new BorderLayout());
-        leftNav.setPreferredSize(new Dimension(380, 0));
-        leftNav.setBackground(Color.WHITE);
-        leftNav.setBorder(new MatteBorder(0, 0, 0, 1, new Color(220, 220, 220)));
-
-        JLabel navTitle = new JLabel("  Select Patient to Analyze", SwingConstants.LEFT);
-        navTitle.setPreferredSize(new Dimension(0, 50));
-        navTitle.setOpaque(true);
-        navTitle.setBackground(new Color(245, 245, 245));
-        navTitle.setFont(new Font("SansSerif", Font.BOLD, 13));
-        leftNav.add(navTitle, BorderLayout.NORTH);
-
-        String[] cols = {"ID", "NAME", "TEST"};
-        DefaultTableModel navModel = new DefaultTableModel(cols, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-
-        // Table Setup
-        JTable navTable = new JTable(navModel);
-        navTable.setRowHeight(45);
-        navTable.setSelectionBackground(new Color(235, 245, 255));
-        navTable.setShowVerticalLines(false);
-        TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(navModel);
-        navTable.setRowSorter(sorter);
-
-        // Search Logic (Fixed to use existing table sorter)
-        JTextField searchBox = new JTextField(" 🔍 Search by name...");
-        searchBox.setFont(new Font("SansSerif", Font.ITALIC, 12));
-        searchBox.setBorder(new CompoundBorder(new MatteBorder(0,0,1,0, Color.LIGHT_GRAY), new EmptyBorder(10,10,10,10)));
-        searchBox.addKeyListener(new KeyAdapter() {
-            public void keyReleased(KeyEvent e) {
-                String query = searchBox.getText().toLowerCase();
-                if (query.contains("search by name")) sorter.setRowFilter(null);
-                else sorter.setRowFilter(RowFilter.regexFilter("(?i)" + query));
-            }
-        });
-
-        leftNav.add(searchBox, BorderLayout.NORTH);
-
-        // Load Data
-        List<Object[]> pendingList = LabratoryDAO.getPendingRequests();
-        if (pendingList != null) for(Object[] r : pendingList) navModel.addRow(new Object[]{r[0], r[1], r[2]});
-        leftNav.add(new JScrollPane(navTable), BorderLayout.CENTER);
-
-        // --- RIGHT ENTRY PANEL (Results Input) ---
-        JPanel entryPanel = new JPanel(new GridBagLayout());
-        entryPanel.setBackground(new Color(250, 251, 253));
-
-        JPanel entryCard = new JPanel();
-        entryCard.setLayout(new BoxLayout(entryCard, BoxLayout.Y_AXIS));
-        entryCard.setBackground(Color.WHITE);
-        entryCard.setPreferredSize(new Dimension(600, 580));
-        entryCard.setBorder(new LineBorder(new Color(220, 220, 220), 1, true));
-
-        JPanel cardHead = new JPanel(new BorderLayout());
-        cardHead.setBackground(NAVY);
-        cardHead.setBorder(new EmptyBorder(20, 30, 20, 30));
-        JLabel cardTitle = new JLabel("VALIDATE FINDINGS");
-        cardTitle.setForeground(Color.WHITE);
-        cardTitle.setFont(new Font("SansSerif", Font.BOLD, 18));
-        cardHead.add(cardTitle, BorderLayout.WEST);
-        entryCard.add(cardHead);
-
-        JPanel fieldBody = new JPanel(new GridBagLayout());
-        fieldBody.setOpaque(false);
-        fieldBody.setBorder(new EmptyBorder(40, 50, 40, 50));
-        GridBagConstraints g = new GridBagConstraints();
-        g.fill = GridBagConstraints.HORIZONTAL; g.weightx = 1.0; g.insets = new Insets(10,0,10,0);
-
-        JTextField valField = new JTextField();
-        valField.setPreferredSize(new Dimension(0, 45));
-        valField.setFont(new Font("SansSerif", Font.BOLD, 18));
-
-        JTextArea noteArea = new JTextArea(4, 20);
-        noteArea.setLineWrap(true);
-        noteArea.setWrapStyleWord(true);
-        noteArea.setBorder(new LineBorder(new Color(200, 200, 200)));
-
-        JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Normal", "Abnormal", "Critical / Urgent"});
-        statusCombo.setPreferredSize(new Dimension(0, 40));
-
-        g.gridy=0; fieldBody.add(new JLabel("OBSERVED VALUE / RESULT"), g);
-        g.gridy=1; fieldBody.add(valField, g);
-        g.gridy=2; fieldBody.add(new JLabel("TECHNICIAN REMARKS"), g);
-        g.gridy=3; fieldBody.add(new JScrollPane(noteArea), g);
-        g.gridy=4; fieldBody.add(new JLabel("ANALYSIS CONCLUSION"), g);
-        g.gridy=5; fieldBody.add(statusCombo, g);
-        entryCard.add(fieldBody);
-
-        JButton submitBtn = new JButton("FINALIZE & SUBMIT TO DOCTOR");
-        submitBtn.setBackground(SUCCESS_GREEN);
-        submitBtn.setForeground(Color.WHITE);
-        submitBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
-        submitBtn.setPreferredSize(new Dimension(0, 60));
-        submitBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        entryCard.add(submitBtn);
-
-        entryPanel.add(entryCard);
-
-        // Selection Listener
-        navTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && navTable.getSelectedRow() != -1) {
-                int selectedRow = navTable.getSelectedRow();
-                cardTitle.setText("Analysing: " + navTable.getValueAt(selectedRow, 1).toString());
-            }
-        });
-
-        // --- SUBMIT LOGIC (Mapped to result_details) ---
-        submitBtn.addActionListener(e -> {
-            int row = navTable.getSelectedRow();
-            if (row == -1) {
-                JOptionPane.showMessageDialog(win, "Select a patient first.");
-                return;
-            }
-
-            // Get ID from model (handle sorting index)
-            int modelRow = navTable.convertRowIndexToModel(row);
-            String reqID = navModel.getValueAt(modelRow, 0).toString();
-
-            // Professional Formatting for result_details column
-            String finalResultDetails = String.format(
-                    "VALUE: %s | REMARKS: %s | CONCLUSION: %s",
-                    valField.getText().trim(),
-                    noteArea.getText().trim(),
-                    statusCombo.getSelectedItem().toString()
-            );
-
-            // Update Database
-            boolean ok = LabratoryDAO.submitLabResult(reqID, finalResultDetails);
-
-            if (ok) {
-                JOptionPane.showMessageDialog(win, "Diagnostic Result Released Successfully.");
-                updateWorkCounts();
-
-                // Refresh UI
-                navModel.removeRow(modelRow);
-                valField.setText("");
-                noteArea.setText("");
-                cardTitle.setText("VALIDATE FINDINGS");
-            } else {
-                JOptionPane.showMessageDialog(win, "Error updating database. Verify table structure.", "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
-
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftNav, entryPanel);
-        split.setDividerLocation(380);
-        split.setDividerSize(1);
-        win.add(split);
-        win.setVisible(true);
-    }
-
-    void showLabRequestsDashboard() {
-        JFrame win = new JFrame("Active Diagnostics Queue");
-        win.setSize(1000, 650);
-        win.setLocationRelativeTo(frame);
-        win.getContentPane().setBackground(new Color(248, 249, 251));
-
-        // Headers match your requested table structure
-        String[] colNames = {"REQUEST ID", "PATIENT NAME", "TEST", "PRIORITY", "STATUS"};
-
-        DefaultTableModel model = new DefaultTableModel(colNames, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-
-        // LOGIC: LabratoryDAO.getAllRecentRequests() MUST use a JOIN to get the Patient Name
-        List<Object[]> requests = LabratoryDAO.getAllRecentRequests();
-        if (requests != null) {
-            for (Object[] r : requests) {
-                model.addRow(r);
-            }
-        }
-
-        JTable table = new JTable(model);
-        upgradeTableUI(table); // Maintains your custom styling
-        table.setRowHeight(50);
-
-        // Dynamic Status Renderer (Pending vs Completed)
-        table.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
-                JLabel l = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
-                l.setHorizontalAlignment(SwingConstants.CENTER);
-
-                // Handle null values gracefully
-                String val = (v != null) ? v.toString().toUpperCase() : "PENDING";
-
-                if (val.contains("COMPLETED")) {
-                    l.setForeground(SUCCESS_GREEN);
-                    l.setText("✔ COMPLETED");
-                } else {
-                    l.setForeground(ACCENT_GOLD);
-                    l.setText("⏳ PENDING");
-                }
-                return l;
-            }
-        });
-
-        // Scannable scroll pane
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        win.add(scrollPane, BorderLayout.CENTER);
-
-        win.setVisible(true);
-    }
-
     private void startAnimations() {
         new Timer(1000, e -> {
             if (animatedTimer != null) animatedTimer.setText(new SimpleDateFormat("EEEE, MMMM dd | HH:mm:ss").format(new Date()));
@@ -499,17 +790,21 @@ public class Labratory extends staffUser {
     }
 
     private void updateWorkCounts() {
+        // PREVENT CRASH: Check if UI labels are initialized
+        if (lblPendingCount == null || lblCompletedCount == null || lblTotalWork == null) {
+            return;
+        }
+
         Map<String, Integer> stats = LabratoryDAO.getWorkStats();
         if (stats != null) {
-            lblPendingCount.setText(String.valueOf(stats.getOrDefault("pending", 0)));
-            lblCompletedCount.setText(String.valueOf(stats.getOrDefault("completed", 0)));
-            lblTotalWork.setText(String.valueOf(stats.getOrDefault("pending", 0) + stats.getOrDefault("completed", 0)));
-        }
-    }
+            int pending = stats.getOrDefault("pending", 0);
+            int completed = stats.getOrDefault("completed", 0);
 
-    @Override public void logout() {
-        if (JOptionPane.showConfirmDialog(frame, "Logout?", "Confirm", JOptionPane.YES_NO_OPTION) == 0) {
-            frame.dispose(); new LoginPage().setVisible(true);
+            lblPendingCount.setText(String.valueOf(pending));
+            lblCompletedCount.setText(String.valueOf(completed));
+
+            // SYSTEM LOGS: Should show the total history (Sum of all)
+            lblTotalWork.setText(String.valueOf(pending + completed));
         }
     }
 
@@ -534,29 +829,9 @@ public class Labratory extends staffUser {
         });
     }
 
-    void showHistoryWindow() {
-        JFrame historyWin = new JFrame("Laboratory Archive");
-        historyWin.setSize(1100, 700);
-        historyWin.setLocationRelativeTo(frame);
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setBackground(Color.WHITE);
-        String[] cols = {"ID", "PATIENT", "TEST", "STATUS", "DATE"};
-        DefaultTableModel model = new DefaultTableModel(cols, 0);
-        List<Object[]> history = LabratoryDAO.getFullLabArchive();
-        if (history != null) {
-            for (Object[] r : history) model.addRow(r);
+    @Override public void logout() {
+        if (JOptionPane.showConfirmDialog(frame, "Logout?", "Confirm", JOptionPane.YES_NO_OPTION) == 0) {
+            frame.dispose(); new LoginPage().setVisible(true);
         }
-        JTable table = new JTable(model);
-        upgradeTableUI(table);
-        mainPanel.add(new JScrollPane(table), BorderLayout.CENTER);
-        historyWin.add(mainPanel);
-        historyWin.setVisible(true);
-    }
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            Labratory lab = new Labratory();
-            lab.usename = "yabu";
-            lab.showDashboard();
-        });
     }
 }
