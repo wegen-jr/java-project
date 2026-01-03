@@ -10,44 +10,65 @@ public class DoctorDAO {
     public List<Object[]> getAllPatientsForDoctor(int doctorId) {
         List<Object[]> patientList = new ArrayList<>();
 
-        // We CONCAT the three name columns into one for your JTable
-        String sql = "SELECT DISTINCT p.patient_id, " +
-                "CONCAT(p.first_name, ' ', p.middle_name, ' ', p.last_name) AS full_name, " +
-                "TIMESTAMPDIFF(YEAR, p.date_of_birth, CURDATE()) AS age, " +
-                "p.gender, p.contact_number, p.registration_date " +
+        // Alternative: Get ALL patients from the system (not just those with appointments)
+        String sql = "SELECT " +
+                "p.patient_id, " +
+                "p.first_name, " +
+                "p.middle_name, " +
+                "p.last_name, " +
+                "p.date_of_birth, " +
+                "p.gender, " +
+                "p.contact_number, " +
+                "p.email, " +
+                "p.address, " +
+                "p.emergency_contact, " +
+                "p.blood_type, " +
+                "p.registration_date, " +
+                "TIMESTAMPDIFF(YEAR, p.date_of_birth, CURDATE()) AS age " +
                 "FROM patients p " +
-                "JOIN appointments a ON p.patient_id = a.patient_id " +
-                "WHERE a.doctor_id = ?";
+                "ORDER BY p.registration_date DESC";
 
         try (Connection con = Database.DatabaseConnection.getConnection();
              PreparedStatement pst = con.prepareStatement(sql)) {
 
-            pst.setInt(1, doctorId);
             ResultSet rs = pst.executeQuery();
 
             while (rs.next()) {
                 patientList.add(new Object[]{
-                        rs.getString("patient_id"),       // 'P001'
-                        rs.getString("full_name"),        // 'Abera Mola Debebe'
-                        rs.getInt("age"),                 // Calculated age
+                        rs.getString("patient_id"),
+                        rs.getString("first_name"),
+                        rs.getString("middle_name"),
+                        rs.getString("last_name"),
+                        rs.getDate("date_of_birth") != null ?
+                                rs.getDate("date_of_birth").toString() : "",
                         rs.getString("gender"),
                         rs.getString("contact_number"),
-                        rs.getDate("registration_date").toString()
+                        rs.getString("email") != null ? rs.getString("email") : "",
+                        rs.getString("address") != null ? rs.getString("address") : "",
+                        rs.getString("emergency_contact") != null ?
+                                rs.getString("emergency_contact") : "",
+                        rs.getString("blood_type") != null ? rs.getString("blood_type") : "",
+                        rs.getDate("registration_date") != null ?
+                                rs.getDate("registration_date").toString() : "",
+                        rs.getInt("age")
                 });
             }
         } catch (SQLException e) {
             System.err.println("Database Error (Patients Dashboard): " + e.getMessage());
+            e.printStackTrace();
         }
         return patientList;
     }
     public List<Object[]> getTodayAppointments(int doctorId) {
         List<Object[]> list = new ArrayList<>();
+        // Added p.patient_id to the SELECT list
         String sql = "SELECT a.appointment_id, a.appointment_time, " +
                 "CONCAT(p.first_name, ' ', p.last_name) AS patient_name, " +
-                "a.reason, a.status " +
+                "a.reason, a.status, p.patient_id " + // Added patient_id here
                 "FROM appointments a " +
                 "JOIN patients p ON a.patient_id = p.patient_id " +
                 "WHERE a.doctor_id = ? AND a.appointment_date = CURDATE() " +
+                "AND a.status != 'Completed' " +
                 "ORDER BY a.appointment_time ASC";
 
         try (Connection con = Database.DatabaseConnection.getConnection();
@@ -58,11 +79,12 @@ public class DoctorDAO {
 
             while (rs.next()) {
                 list.add(new Object[]{
-                        rs.getInt("appointment_id"),
-                        rs.getTime("appointment_time").toString(),
-                        rs.getString("patient_name"),
-                        rs.getString("reason"),
-                        rs.getString("status").toUpperCase()
+                        rs.getInt("appointment_id"),        // Index 0
+                        rs.getTime("appointment_time").toString(), // Index 1
+                        rs.getString("patient_name"),       // Index 2
+                        rs.getString("reason"),             // Index 3
+                        rs.getString("status").toUpperCase(), // Index 4
+                        rs.getString("patient_id")          // Index 5 (THE FIX)
                 });
             }
         } catch (SQLException e) {
@@ -86,17 +108,14 @@ public class DoctorDAO {
 
     public List<Object[]> getLabResultsForDoctor(int doctorId) {
         List<Object[]> results = new ArrayList<>();
-
-        // We CONCAT the name parts and select the lab specific columns
-        // I am assuming your lab table is named 'lab_requests' or 'lab_results'
-        // Adjust the table name below if it differs (e.g., 'laboratory_orders')
+        // Using COALESCE to prevent the NullPointerException on names
         String sql = "SELECT l.request_id, " +
-                "CONCAT(p.first_name, ' ', p.middle_name, ' ', p.last_name) AS patient_name, " +
+                "CONCAT(COALESCE(p.first_name,''), ' ', COALESCE(p.last_name,'')) AS patient_name, " +
                 "l.test_type, l.priority, l.status, l.result_details " +
                 "FROM lab_requests l " +
-                "JOIN patients p ON l.patient_id COLLATE utf8mb4_unicode_ci = p.patient_id COLLATE utf8mb4_unicode_ci " +
-                "WHERE l.doctor_id = ?";
-
+                "LEFT JOIN patients p ON l.patient_id = p.patient_id " +
+                "WHERE l.doctor_id = ? " +
+                "ORDER BY l.request_id DESC";
 
         try (Connection con = Database.DatabaseConnection.getConnection();
              PreparedStatement pst = con.prepareStatement(sql)) {
@@ -106,12 +125,12 @@ public class DoctorDAO {
 
             while (rs.next()) {
                 results.add(new Object[]{
-                        rs.getInt("request_id"),           // Index 0
-                        rs.getString("patient_name"),      // Index 1
-                        rs.getString("test_type"),         // Index 2
-                        rs.getString("priority"),          // Index 3
-                        rs.getString("status"),            // Index 4
-                        rs.getString("result_details")     // Index 5 (This is the "Full Results")
+                        rs.getInt("request_id"),
+                        rs.getString("patient_name"),
+                        rs.getString("test_type"),
+                        rs.getString("priority"),
+                        rs.getString("status"),
+                        rs.getString("result_details") // This might be NULL initially
                 });
             }
         } catch (SQLException e) {
@@ -210,14 +229,18 @@ public class DoctorDAO {
         return patients;
     }
 
-    public void updateAppointmentStatus(int apptId, String status) {
+    public boolean updateAppointmentStatus(int apptId, String status) {
         String sql = "UPDATE appointments SET status = ? WHERE appointment_id = ?";
         try (Connection con = Database.DatabaseConnection.getConnection();
              PreparedStatement pst = con.prepareStatement(sql)) {
             pst.setString(1, status);
             pst.setInt(2, apptId);
-            pst.executeUpdate();
-        } catch (SQLException e) { e.printStackTrace(); }
+            int affectedRows = pst.executeUpdate();
+            return affectedRows > 0; // Returns true if the record was actually found and updated
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
     public Map<String, String> getDoctorByAuthId(int authId) {
         Map<String, String> doctorMap = new HashMap<>();
