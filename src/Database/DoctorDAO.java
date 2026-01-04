@@ -8,56 +8,44 @@ public class DoctorDAO {
 
 
     public List<Object[]> getAllPatientsForDoctor(int doctorId) {
-        List<Object[]> patientList = new ArrayList<>();
+        List<Object[]> list = new ArrayList<>();
 
-        // Alternative: Get ALL patients from the system (not just those with appointments)
-        String sql = "SELECT " +
-                "p.patient_id, " +
-                "p.first_name, " +
-                "p.middle_name, " +
-                "p.last_name, " +
-                "p.date_of_birth, " +
-                "p.gender, " +
-                "p.contact_number, " +
-                "p.email, " +
-                "p.address, " +
-                "p.emergency_contact, " +
-                "p.blood_type, " +
-                "p.registration_date, " +
-                "TIMESTAMPDIFF(YEAR, p.date_of_birth, CURDATE()) AS age " +
+        // Using DISTINCT to ensure unique patient records
+        // Joining with appointments to filter only patients linked to this doctor
+        String sql = "SELECT DISTINCT p.patient_id, p.first_name, p.middle_name, p.last_name, " +
+                "p.date_of_birth, p.gender, p.contact_number, p.email, p.address, " +
+                "p.emergency_contact, p.blood_type, p.registration_date " +
                 "FROM patients p " +
-                "ORDER BY p.registration_date DESC";
+                "INNER JOIN appointments a ON p.patient_id = a.patient_id " +
+                "WHERE a.doctor_id = ? " +
+                "ORDER BY p.last_name ASC";
 
         try (Connection con = Database.DatabaseConnection.getConnection();
              PreparedStatement pst = con.prepareStatement(sql)) {
 
+            pst.setInt(1, doctorId);
             ResultSet rs = pst.executeQuery();
 
             while (rs.next()) {
-                patientList.add(new Object[]{
-                        rs.getString("patient_id"),
-                        rs.getString("first_name"),
-                        rs.getString("middle_name"),
-                        rs.getString("last_name"),
-                        rs.getDate("date_of_birth") != null ?
-                                rs.getDate("date_of_birth").toString() : "",
-                        rs.getString("gender"),
-                        rs.getString("contact_number"),
-                        rs.getString("email") != null ? rs.getString("email") : "",
-                        rs.getString("address") != null ? rs.getString("address") : "",
-                        rs.getString("emergency_contact") != null ?
-                                rs.getString("emergency_contact") : "",
-                        rs.getString("blood_type") != null ? rs.getString("blood_type") : "",
-                        rs.getDate("registration_date") != null ?
-                                rs.getDate("registration_date").toString() : "",
-                        rs.getInt("age")
+                list.add(new Object[]{
+                        rs.getString("patient_id"),       // 0
+                        rs.getString("first_name"),       // 1
+                        rs.getString("middle_name"),      // 2
+                        rs.getString("last_name"),        // 3
+                        rs.getDate("date_of_birth"),      // 4
+                        rs.getString("gender"),           // 5
+                        rs.getString("contact_number"),   // 6
+                        rs.getString("email"),            // 7
+                        rs.getString("address"),          // 8
+                        rs.getString("emergency_contact"),// 9
+                        rs.getString("blood_type"),       // 10
+                        rs.getTimestamp("registration_date") // 11
                 });
             }
         } catch (SQLException e) {
-            System.err.println("Database Error (Patients Dashboard): " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error fetching doctor's patients: " + e.getMessage());
         }
-        return patientList;
+        return list;
     }
     public List<Object[]> getTodayAppointments(int doctorId) {
         List<Object[]> list = new ArrayList<>();
@@ -105,7 +93,6 @@ public class DoctorDAO {
             return pst.executeUpdate() > 0;
         } catch (SQLException e) { e.printStackTrace(); return false; }
     }
-
     public List<Object[]> getLabResultsForDoctor(int doctorId) {
         List<Object[]> results = new ArrayList<>();
         // Using COALESCE to prevent the NullPointerException on names
@@ -138,8 +125,6 @@ public class DoctorDAO {
         }
         return results;
     }
-
-    // --- 4. CLINICAL PROFILE DATA (Uses INT) ---
     public Map<String, String> getDoctorProfileData(int doctorId) {
         Map<String, String> data = new HashMap<>();
         String sql = "SELECT * FROM doctors WHERE doctor_id = ?";
@@ -165,8 +150,6 @@ public class DoctorDAO {
         } catch (SQLException e) { e.printStackTrace(); }
         return data;
     }
-
-    // --- 5. PRESCRIPTIONS & RECORDS (Uses INT) ---
     public boolean submitPrescriptionAndRecord(String pId, int dId, String med, String dose, String instr, String diag) {
         Connection con = null;
         // Try using 'prescriptions' (plural) or check your DB for the exact name
@@ -203,32 +186,6 @@ public class DoctorDAO {
             return false;
         }
     }
-    // --- 6. UTILITY METHODS ---
-    public List<String> getDoctorPatientList(int doctorId) {
-        List<String> patients = new ArrayList<>();
-        // Use CONCAT to merge the name parts so the UI can display them correctly
-        String sql = "SELECT DISTINCT p.patient_id, " +
-                "CONCAT(p.first_name, ' ', p.middle_name, ' ', p.last_name) AS full_name " +
-                "FROM patients p " +
-                "JOIN appointments a ON p.patient_id = a.patient_id " +
-                "WHERE a.doctor_id = ?";
-
-        try (Connection con = Database.DatabaseConnection.getConnection();
-             PreparedStatement pst = con.prepareStatement(sql)) {
-
-            pst.setInt(1, doctorId);
-            ResultSet rs = pst.executeQuery();
-
-            while (rs.next()) {
-                // This format matches what your Prescription Dashboard split logic expects
-                patients.add(rs.getString("patient_id") + " - " + rs.getString("full_name"));
-            }
-        } catch (SQLException e) {
-            System.err.println("Error fetching Patient List for Dropdown: " + e.getMessage());
-        }
-        return patients;
-    }
-
     public boolean updateAppointmentStatus(int apptId, String status) {
         String sql = "UPDATE appointments SET status = ? WHERE appointment_id = ?";
         try (Connection con = Database.DatabaseConnection.getConnection();
@@ -288,7 +245,6 @@ public class DoctorDAO {
             return rs.next() ? rs.getInt(1) : 0;
         } catch (SQLException e) { return 0; }
     }
-
     public int getTodayAppointmentCount(int doctorId) {
         int count = 0;
         // This query counts everything EXCEPT 'Completed' and 'Cancelled'
@@ -310,7 +266,6 @@ public class DoctorDAO {
         }
         return count;
     }
-
     public int getTotalPatientCount(int docId) {
         String sql = "SELECT COUNT(DISTINCT patient_id) FROM appointments WHERE doctor_id = ?";
         try (Connection con = Database.DatabaseConnection.getConnection();
@@ -351,7 +306,6 @@ public class DoctorDAO {
         }
         return schedule;
     }
-    // 1. Get the next ID for display purposes
     public String getNextPrescriptionId() {
         String nextId = "1";
         // Checks the next increment value for the prescriptions table
@@ -365,6 +319,5 @@ public class DoctorDAO {
         return nextId;
     }
 
-    // 2. Submit both the Prescription and the Medical Record update
 
 }
