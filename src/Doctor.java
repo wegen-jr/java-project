@@ -560,6 +560,7 @@ public class Doctor extends staffUser {
 
 
 
+
         JButton closeBtn = new JButton("← BACK TO DASHBOARD");
         styleNavButton(closeBtn, new Color(31, 41, 55), Color.WHITE);
         closeBtn.addActionListener(e -> switchToPanel("dashboard"));
