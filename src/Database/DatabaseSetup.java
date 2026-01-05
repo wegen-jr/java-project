@@ -1,7 +1,5 @@
 package Database;
 
-import com.mysql.cj.Constants;
-
 import javax.swing.*;
 import java.sql.*;
 
@@ -14,8 +12,8 @@ public class DatabaseSetup {
         try {
             // Connect to MySQL server
             String baseUrl = "jdbc:mysql://localhost:3306/HMS";
-            String username = "abrshiz";
-            String password = "abrsh123";
+            String username = Constants.USERNAME;
+            String password = Constants.PASSWORD;
 
             Class.forName("com.mysql.cj.jdbc.Driver");
             conn = DriverManager.getConnection(baseUrl, username, password);
@@ -39,7 +37,15 @@ public class DatabaseSetup {
             createMedicalRecordsTable(stmt);
             createBillingTable(stmt);
             createReceptionLogsTable(stmt);
-            
+
+            // Insert default data safely
+            JFrame frame = new JFrame();
+            int res = JOptionPane.showConfirmDialog(frame, "Would you like to start with the default data in the database?", "Default Data Insertion", JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+            if(res == JOptionPane.YES_OPTION) insertDefaultData(conn);
+
+            System.out.println("🎉 Database initialization complete!");
+
         } catch (Exception e) {
             System.err.println("❌ Database setup failed: " + e.getMessage());
             e.printStackTrace();
