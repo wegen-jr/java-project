@@ -20,6 +20,14 @@ public class Pharmacy extends staffUser {
     private JFrame mainFrame;
     private JPanel contentPanel;
     private Timer autoRefreshTimer;
+    private String userId;
+    private String usename;
+    private String role;
+
+    // Ensure these exist!
+    private String licenseNumber;
+    private String shiftType;
+    private String contactNumber;
 
     // Change the constructor in your Pharmacy.java to this:
     public Pharmacy(int authId) {
@@ -36,7 +44,8 @@ public class Pharmacy extends staffUser {
 
     // Add this helper method to handle the data loading
     private void loadPharmacistData(int loggedInAuthId) {
-        String query = "SELECT first_name, last_name, pharmacist_id FROM pharmacists WHERE auth_id = ?";
+        // UPDATED QUERY: Select ALL required columns
+        String query = "SELECT pharmacist_id, first_name, last_name, license_number, shift_type, contact_number FROM pharmacists WHERE auth_id = ?";
 
         try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791");
              PreparedStatement pst = conn.prepareStatement(query)) {
@@ -45,17 +54,21 @@ public class Pharmacy extends staffUser {
             ResultSet rs = pst.executeQuery();
 
             if (rs.next()) {
-                // Update the variables that showOverview() uses
+                // 1. Basic Info
                 String fName = rs.getString("first_name");
                 String lName = rs.getString("last_name");
-
                 this.usename = fName + " " + lName;
                 this.userId = String.valueOf(rs.getInt("pharmacist_id"));
 
-                System.out.println("✅ Name loaded: " + this.usename);
+                // 2. ID CARD INFO (This was missing!)
+                this.licenseNumber = rs.getString("license_number");
+                this.shiftType = rs.getString("shift_type");
+                this.contactNumber = rs.getString("contact_number");
+
+                System.out.println("✅ Full Profile Loaded for: " + this.usename);
             }
         } catch (SQLException e) {
-            this.usename = "Pharmacist"; // Fallback
+            this.usename = "Pharmacist";
             e.printStackTrace();
         }
     }
@@ -404,11 +417,11 @@ public class Pharmacy extends staffUser {
     private void showInventoryManager() {
         contentPanel.removeAll();
 
-        // Using GridBagLayout to keep the ID card centered regardless of window size
+        // Using GridBagLayout to keep the ID card centered
         JPanel overlay = new JPanel(new GridBagLayout());
         overlay.setOpaque(false);
 
-        // --- THE DIGITAL SMART CARD ---
+        // --- THE DIGITAL SMART CARD (Design kept exactly the same) ---
         JPanel idCard = new JPanel(null) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -418,14 +431,14 @@ public class Pharmacy extends staffUser {
 
                 // 1. Card Body Shadow & Base
                 g2.setColor(new Color(0, 0, 0, 40));
-                g2.fillRoundRect(5, 5, 395, 595, 35, 35); // Soft shadow
+                g2.fillRoundRect(5, 5, 395, 595, 35, 35);
                 g2.setColor(Color.WHITE);
                 g2.fillRoundRect(0, 0, 400, 600, 30, 30);
 
                 // 2. Modern Header
                 g2.setColor(NAVY);
                 g2.fillRoundRect(0, 0, 400, 140, 30, 30);
-                g2.fillRect(0, 100, 400, 40); // Flattened bottom for header
+                g2.fillRect(0, 100, 400, 40);
 
                 // 3. Gold Chip Graphic
                 g2.setColor(new Color(212, 175, 55));
@@ -433,7 +446,7 @@ public class Pharmacy extends staffUser {
                 g2.setColor(new Color(0, 0, 0, 40));
                 g2.drawRoundRect(320, 160, 45, 35, 8, 8);
 
-                // 4. Photo Circle with Image Clipping
+                // 4. Photo Circle
                 int cx = 130, cy = 70, size = 140;
                 g2.setColor(new Color(240, 240, 240));
                 g2.fillOval(cx, cy, size, size);
@@ -446,14 +459,14 @@ public class Pharmacy extends staffUser {
                     Image img = new ImageIcon(imgFile.getAbsolutePath()).getImage();
                     g2.setClip(new java.awt.geom.Ellipse2D.Float(cx, cy, size, size));
                     g2.drawImage(img, cx, cy, size, size, null);
-                    g2.setClip(null); // Remove mask
+                    g2.setClip(null);
                 } else {
                     g2.setColor(new Color(180, 180, 180));
                     g2.setFont(new Font("Segoe UI", Font.PLAIN, 80));
                     g2.drawString("👤", cx + 30, cy + 100);
                 }
 
-                // 5. Teal Ring Around Photo
+                // 5. Teal Ring
                 g2.setColor(TEAL);
                 g2.setStroke(new BasicStroke(4));
                 g2.drawOval(cx + 2, cy + 2, size - 4, size - 4);
@@ -481,64 +494,53 @@ public class Pharmacy extends staffUser {
         systemTitle.setBounds(30, 45, 300, 35);
         idCard.add(systemTitle);
 
-        // Database Population
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791")) {
-            String query = "SELECT * FROM pharmacists WHERE auth_id = ?";
-            PreparedStatement pst = conn.prepareStatement(query);
-            pst.setString(1, userId);
-            ResultSet rs = pst.executeQuery();
+        // --- FIX: USE PRE-LOADED DATA INSTEAD OF SQL ---
+        // Personnel Name (Already loaded in constructor)
+        String displayName = (usename != null) ? usename.toUpperCase() : "PHARMACIST";
+        JLabel nameLabel = new JLabel(displayName, SwingConstants.CENTER);
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 26));
+        nameLabel.setForeground(NAVY);
+        nameLabel.setBounds(0, 220, 400, 40);
+        idCard.add(nameLabel);
 
-            if (rs.next()) {
-                // Personnel Name
-                String fullName = rs.getString("first_name") + " " + rs.getString("last_name");
-                JLabel nameLabel = new JLabel(fullName.toUpperCase(), SwingConstants.CENTER);
-                nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 26));
-                nameLabel.setForeground(NAVY);
-                nameLabel.setBounds(0, 220, 400, 40);
-                idCard.add(nameLabel);
+        JLabel rank = new JLabel("LICENSED PHARMACIST", SwingConstants.CENTER);
+        rank.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        rank.setForeground(TEAL);
+        rank.setBounds(0, 255, 400, 20);
+        idCard.add(rank);
 
-                JLabel rank = new JLabel("LICENSED PHARMACIST", SwingConstants.CENTER);
-                rank.setFont(new Font("Segoe UI", Font.BOLD, 13));
-                rank.setForeground(TEAL);
-                rank.setBounds(0, 255, 400, 20);
-                idCard.add(rank);
-
-                // Details Section
-                int y = 310;
-                addDetail(idCard, "LICENSE NUMBER", rs.getString("license_number"), y);
-                addDetail(idCard, "EMPLOYEE SERIAL", "PHARM-" + rs.getString("pharmacist_id"), y + 60);
-                addDetail(idCard, "CURRENT SHIFT", rs.getString("shift_type").toUpperCase(), y + 120);
-                addDetail(idCard, "EMERGENCY CONTACT", rs.getString("contact_number"), y + 180);
-
-
-            }
-        } catch (SQLException e) {
-            JLabel err = new JLabel("OFFLINE MODE - DATA SYNC FAILED", SwingConstants.CENTER);
-            err.setBounds(0, 300, 400, 30);
-            err.setForeground(Color.RED);
-            idCard.add(err);
-        }
+        // Details Section (Using variables assigned in loadPharmacistData)
+        int y = 310;
+        addDetail(idCard, "LICENSE NUMBER", (licenseNumber != null ? licenseNumber : "N/A"), y);
+        addDetail(idCard, "EMPLOYEE SERIAL", "PHARM-" + userId, y + 60);
+        addDetail(idCard, "CURRENT SHIFT", (shiftType != null ? shiftType.toUpperCase() : "N/A"), y + 120);
+        addDetail(idCard, "EMERGENCY CONTACT", (contactNumber != null ? contactNumber : "N/A"), y + 180);
 
         overlay.add(idCard);
         contentPanel.add(overlay);
         refreshPanel();
     }
 
-    // Helper method for the ID Card fields
-    private void addDetail(JPanel card, String title, String val, int yPos) {
-        JLabel t = new JLabel(title);
-        t.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        t.setForeground(new Color(160, 160, 160));
-        t.setBounds(60, yPos, 300, 15);
+    // Helper method to maintain your layout design
+    private void addDetail(JPanel card, String label, String value, int y) {
+        // Label (e.g., "LICENSE NUMBER")
+        JLabel title = new JLabel(label);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        title.setForeground(Color.GRAY);
+        title.setBounds(50, y, 300, 15);
 
-        JLabel v = new JLabel(val != null ? val : "NOT ASSIGNED");
-        v.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 18));
-        v.setForeground(new Color(40, 40, 40));
-        v.setBounds(60, yPos + 18, 300, 25);
+        // Value (e.g., "PHARM-12345")
+        JLabel content = new JLabel(value);
+        content.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        content.setForeground(Color.BLACK);
+        content.setBounds(50, y + 18, 300, 25);
 
-        card.add(t);
-        card.add(v);
+        card.add(title);
+        card.add(content);
     }
+
+    // Helper method for the ID Card fields
+
 
 
 
