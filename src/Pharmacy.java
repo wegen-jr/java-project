@@ -5,6 +5,10 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.time.LocalTime;
+import javax.swing.Timer;
+
 
 public class Pharmacy extends staffUser {
     // Styling Colors
@@ -15,11 +19,45 @@ public class Pharmacy extends staffUser {
 
     private JFrame mainFrame;
     private JPanel contentPanel;
+    private Timer autoRefreshTimer;
 
-    public Pharmacy(String userId, String username) {
-        this.userId = userId;
-        this.usename = username;
-        this.role = "Pharmacist";
+    // Change the constructor in your Pharmacy.java to this:
+    public Pharmacy(int authId) {
+        // 1. Assign the ID (assuming you change userId to an int or parse it)
+        this.userId = String.valueOf(authId);
+        this.role = "PHARMACY";
+
+        // 2. Load the specific pharmacist data (name, license, etc.) from DB
+        loadPharmacistData(authId);
+
+        // 3. Launch the UI immediately
+        showDashboard();
+    }
+
+    // Add this helper method to handle the data loading
+    private void loadPharmacistData(int loggedInAuthId) {
+        String query = "SELECT first_name, last_name, pharmacist_id FROM pharmacists WHERE auth_id = ?";
+
+        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791");
+             PreparedStatement pst = conn.prepareStatement(query)) {
+
+            pst.setInt(1, loggedInAuthId);
+            ResultSet rs = pst.executeQuery();
+
+            if (rs.next()) {
+                // Update the variables that showOverview() uses
+                String fName = rs.getString("first_name");
+                String lName = rs.getString("last_name");
+
+                this.usename = fName + " " + lName;
+                this.userId = String.valueOf(rs.getInt("pharmacist_id"));
+
+                System.out.println("✅ Name loaded: " + this.usename);
+            }
+        } catch (SQLException e) {
+            this.usename = "Pharmacist"; // Fallback
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -38,7 +76,7 @@ public class Pharmacy extends staffUser {
                 Graphics2D g2d = (Graphics2D) g;
                 g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
-                String path = "assets/pharmacy2.jpg";
+                String path = "assets/pharmacy.jpg";
                 File imgFile = new File(path);
                 if (!imgFile.exists()) imgFile = new File("src/" + path);
 
@@ -68,7 +106,7 @@ public class Pharmacy extends staffUser {
         titlePanel.setMaximumSize(new Dimension(260, 80)); // Lock header height
 
         JLabel portalHeader = new JLabel("PHARMA-SYNC");
-        File portalIcon = new File("assets/overviewicon.jpg");
+        File portalIcon = new File("assets/logo.jpg");
         if (portalIcon.exists()) {
             portalHeader.setIcon(new ImageIcon(new ImageIcon(portalIcon.getPath()).getImage().getScaledInstance(22, 22, Image.SCALE_SMOOTH)));
             portalHeader.setIconTextGap(12);
@@ -82,10 +120,10 @@ public class Pharmacy extends staffUser {
         p.add(Box.createVerticalStrut(15));
 
         // Navigation items with Struts to prevent overlap doubling
-        p.add(createNavItem("Overview", "assets/overviewicon.jpg", e -> showOverview()));
+        p.add(createNavItem("Dashboard", "assets/dashboard.png", e -> showOverview()));
         p.add(Box.createVerticalStrut(10)); // Spacer fix
 
-        p.add(createNavItem("Prescription Queue", "assets/prescriptionqueueicon.jpg", e -> showPrescriptionQueue()));
+        p.add(createNavItem("Prescription Queue", "assets/medical-prescription.png", e -> showPrescriptionQueue()));
         p.add(Box.createVerticalStrut(10)); // Spacer fix
 
         p.add(createNavItem("Profile", "assets/user.png", e -> showInventoryManager()));
@@ -96,7 +134,21 @@ public class Pharmacy extends staffUser {
         logoutWrapper.setOpaque(false);
         logoutWrapper.setMaximumSize(new Dimension(260, 80));
 
-        JButton logoutBtn = createNavItem("Log Out", "assets/logouticon.jpg", e -> logout());
+// Updated action listener with Confirmation Dialog
+        JButton logoutBtn = createNavItem("Log Out", "assets/logout.png", e -> {
+            int confirm = JOptionPane.showConfirmDialog(
+                    mainFrame,
+                    "Are you sure you want to log out?",
+                    "Logout Confirmation",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                logout();
+            }
+        });
+
         logoutBtn.setPreferredSize(new Dimension(220, 45));
         logoutBtn.setOpaque(true);
         logoutBtn.setBackground(new Color(230, 57, 70, 180));
@@ -148,30 +200,103 @@ public class Pharmacy extends staffUser {
         btn.addActionListener(action);
         return btn;
     }
+// ... inside Pharmacy class ...
 
-    // --- OTHER METHODS (Untouched Design) ---
     private void showOverview() {
         contentPanel.removeAll();
-        JPanel overlay = new JPanel(new BorderLayout());
+
+        // Stop existing timer if switching back to dashboard to prevent multiple threads
+        if (autoRefreshTimer != null) autoRefreshTimer.stop();
+
+        // 1. Initialize the Live Labels
+        JLabel pendingValLbl = new JLabel("0", SwingConstants.CENTER);
+        JLabel dispensedValLbl = new JLabel("0", SwingConstants.CENTER);
+        DefaultTableModel tableModel = new DefaultTableModel(new String[]{"Patient ID", "Medication", "Time", "Status"}, 0){
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // This makes the entire table non-editable
+            }
+        };
+
+
+        // 2. Define the Refresh Logic
+        ActionListener refreshAction = e -> {
+            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791")) {
+                // Live Pending Count
+                ResultSet rs1 = conn.createStatement().executeQuery("SELECT COUNT(*) FROM prescriptions WHERE status = 'Pending'");
+                if(rs1.next()) pendingValLbl.setText(String.valueOf(rs1.getInt(1)));
+
+                // Live Dispensed Today Count
+                ResultSet rs2 = conn.createStatement().executeQuery("SELECT COUNT(*) FROM prescriptions WHERE status = 'Done' AND DATE(issued_at) = CURDATE()");
+                if(rs2.next()) dispensedValLbl.setText(String.valueOf(rs2.getInt(1)));
+
+                // Live Table Data
+                ResultSet rs3 = conn.createStatement().executeQuery("SELECT patient_id, medication_name, issued_at, status FROM prescriptions ORDER BY issued_at DESC LIMIT 10");
+                tableModel.setRowCount(0); // Clear old data
+                while(rs3.next()) {
+                    tableModel.addRow(new Object[]{
+                            rs3.getString("patient_id"),
+                            rs3.getString("medication_name"),
+                            rs3.getTimestamp("issued_at").toString().substring(11, 16),
+                            rs3.getString("status")
+                    });
+                }
+            } catch (SQLException ex) {
+                System.err.println("Live Update Error: " + ex.getMessage());
+            }
+        };
+
+        // 3. Start the Timer (Updates every 5 seconds)
+        autoRefreshTimer = new Timer(5000, refreshAction);
+        autoRefreshTimer.start();
+        refreshAction.actionPerformed(null); // Run immediately once on load
+
+        // 4. UI LOGIC (Preserving your exact design)
+        JPanel overlay = new JPanel(new BorderLayout(0, 20));
         overlay.setOpaque(false);
-        overlay.setBorder(new EmptyBorder(25, 25, 25, 25));
+        overlay.setBorder(new EmptyBorder(30, 40, 30, 40));
 
-        JPanel header = new JPanel(new GridLayout(1, 3, 25, 0));
+        // Time-Based Welcome Panel
+        JPanel welcomeWrapper = new JPanel(new BorderLayout());
+        welcomeWrapper.setOpaque(false);
+
+        int hour = java.time.LocalTime.now().getHour();
+        String greeting = (hour < 12) ? "Good Morning, Pharmacist " : (hour < 17) ? "Good Afternoon, Pharmacist " : "Good Evening, Pharmacist ";
+
+        JLabel welcomeLbl = new JLabel(greeting + usename);
+        welcomeLbl.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        welcomeLbl.setForeground(Color.BLACK);
+
+        String dateString = new SimpleDateFormat("EEEE, MMMM dd, yyyy").format(new java.util.Date());
+        JLabel dateLbl = new JLabel(dateString);
+        dateLbl.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        dateLbl.setForeground(new Color(0, 0, 0, 180));
+
+        welcomeWrapper.add(welcomeLbl, BorderLayout.NORTH);
+        welcomeWrapper.add(dateLbl, BorderLayout.SOUTH);
+
+        // Stats Cards Row - Updated to use the Live Labels
+        JPanel header = new JPanel(new GridLayout(1, 2, 25, 0));
         header.setOpaque(false);
-        header.add(createStatCard("Pending Requests", "12", TEAL));
-        header.add(createStatCard("Low Stock", "4", new Color(230, 57, 70)));
-        header.add(createStatCard("Dispensed Today", "48", NAVY));
+        header.add(createLiveStatCard("Pending Requests", pendingValLbl, TEAL));
+        header.add(createLiveStatCard("Dispensed Today", dispensedValLbl, NAVY));
 
-        overlay.add(header, BorderLayout.NORTH);
+        JPanel northPanel = new JPanel(new BorderLayout(0, 25));
+        northPanel.setOpaque(false);
+        northPanel.add(welcomeWrapper, BorderLayout.NORTH);
+        northPanel.add(header, BorderLayout.CENTER);
 
-        // Example Table Logic
-        String[] cols = {"Activity", "Time", "Status"};
-        Object[][] data = {{"Aspirin Dispensed", "10:30 AM", "Completed"},{"Stock Update", "09:15 AM", "Verified"}};
-        JTable table = new JTable(new DefaultTableModel(data, cols));
+        JTable table = new JTable(tableModel);
         styleTable(table);
+
         JScrollPane scroll = new JScrollPane(table);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
+        scroll.setBorder(BorderFactory.createTitledBorder(
+                new LineBorder(new Color(0, 0, 0, 100)), " Live Pharmacy Activity Feed ",
+                TitledBorder.LEFT, TitledBorder.TOP, new Font("Segoe UI", Font.BOLD, 14), Color.BLACK));
+
+        overlay.add(northPanel, BorderLayout.NORTH);
         overlay.add(scroll, BorderLayout.CENTER);
 
         contentPanel.add(overlay);
@@ -179,12 +304,76 @@ public class Pharmacy extends staffUser {
     }
 
     private void styleTable(JTable table) {
-        table.setRowHeight(45);
-        table.getTableHeader().setBackground(NAVY);
-        table.getTableHeader().setForeground(Color.WHITE);
-    }
+        // 1. General Table Properties
+        table.setRowHeight(52); // Taller rows are more modern and readable
+        table.setShowGrid(false); // Remove old-fashioned grid lines
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setSelectionBackground(new Color(42, 157, 143, 40)); // Subtle Teal highlight
+        table.setSelectionForeground(NAVY);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        table.setBackground(new Color(255, 255, 255, 230)); // Glass effect
 
-    private JPanel createStatCard(String title, String value, Color accent) {
+        // 2. Header Customization
+        JTableHeader header = table.getTableHeader();
+        header.setPreferredSize(new Dimension(0, 48));
+        header.setBackground(NAVY);
+        header.setForeground(Color.WHITE);
+        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        header.setReorderingAllowed(false); // Professional look
+
+        // Center the text in the Status column (usually the last column)
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+
+        // Apply special badge renderer to the Status column
+        // Assuming status is at index 3 in Overview and index 6 in Queue
+        int statusIdx = table.getColumnCount() - 1;
+        table.getColumnModel().getColumn(statusIdx).setCellRenderer(new StatusBadgeRenderer());
+    }
+    class StatusBadgeRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+            JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
+            label.setHorizontalAlignment(SwingConstants.CENTER);
+            String status = (value != null) ? value.toString() : "";
+
+            // Create a custom JPanel to draw the "Pill" badge
+            return new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                    Color bg, fg;
+                    if (status.equalsIgnoreCase("Pending")) {
+                        bg = new Color(255, 243, 224); // Light Orange
+                        fg = new Color(230, 126, 34);  // Dark Orange
+                    } else if (status.equalsIgnoreCase("Done") || status.equalsIgnoreCase("Completed")) {
+                        bg = new Color(232, 245, 233); // Light Green
+                        fg = new Color(46, 125, 50);   // Dark Green
+                    } else {
+                        bg = new Color(245, 245, 245);
+                        fg = Color.GRAY;
+                    }
+
+                    // Draw Background Pill
+                    g2.setColor(bg);
+                    g2.fillRoundRect(getWidth()/2 - 45, getHeight()/2 - 12, 90, 24, 15, 15);
+
+                    // Draw Text
+                    g2.setColor(fg);
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                    FontMetrics fm = g2.getFontMetrics();
+                    int textX = (getWidth() - fm.stringWidth(status.toUpperCase())) / 2;
+                    int textY = ((getHeight() - fm.getHeight()) / 2) + fm.getAscent();
+                    g2.drawString(status.toUpperCase(), textX, textY);
+                    g2.dispose();
+                }
+            };
+        }
+    }
+    private JPanel createLiveStatCard(String title, JLabel valLbl, Color accent) {
         JPanel card = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -199,10 +388,16 @@ public class Pharmacy extends staffUser {
         };
         card.setOpaque(false);
         card.setBorder(new EmptyBorder(20, 20, 20, 20));
-        JLabel valLbl = new JLabel(value, SwingConstants.CENTER);
+
         valLbl.setFont(new Font("Segoe UI", Font.BOLD, 42));
         valLbl.setForeground(accent);
+
+        JLabel titleLbl = new JLabel(title, SwingConstants.CENTER);
+        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        titleLbl.setForeground(new Color(50, 50, 50));
+
         card.add(valLbl, BorderLayout.CENTER);
+        card.add(titleLbl, BorderLayout.SOUTH);
         return card;
     }
 
@@ -527,7 +722,4 @@ public class Pharmacy extends staffUser {
         contentPanel.repaint(); }
     @Override void logout() { new LoginPage().setVisible(true); }
 
-//    public static void main(String args[]){
-//        SwingUtilities.invokeLater(() -> new Pharmacy("9","eyob").showDashboard());
-//    }
 }

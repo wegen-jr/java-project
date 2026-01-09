@@ -116,21 +116,22 @@ public class LoginPage extends JFrame {
 
             if (userData != null) {
                 // 3. DATA EXTRACTION
-                // We use String.valueOf() to safely handle the objects from the Map
                 String role = (userData.get("role") != null) ? userData.get("role").toString().trim() : "";
-                String fullName = (userData.get("full_name") != null) ? userData.get("full_name").toString() : "Unknown User";
 
-                // Ensure auth_id exists to avoid NullPointerException
+                // --- UPDATED NAME EXTRACTION ---
+                // If full_name is missing in the map, we use the inputUser so it's never "Unknown"
+                String fullName = (userData.get("full_name") != null) ?
+                        userData.get("full_name").toString() : inputUser;
+
                 int authId = 0;
                 if (userData.get("auth_id") != null) {
                     authId = Integer.parseInt(userData.get("auth_id").toString());
                 }
 
                 // 4. SUCCESS POPUP
-                // This will now show the actual name from the 'full_name' column in your DB
                 JOptionPane.showMessageDialog(this, "Login Successful!\nWelcome " + fullName);
 
-                // 5. ROLE-BASED NAVIGATION (Design Preserved)
+                // 5. ROLE-BASED NAVIGATION
                 switch (role.toUpperCase()) {
                     case "DOCTOR":
                         new Doctor(authId).showDashboard();
@@ -141,7 +142,7 @@ public class LoginPage extends JFrame {
                         this.dispose();
                         break;
                     case "ADMIN":
-                         new Admin(fullName).showDashboard();
+                        new Admin(fullName).showDashboard();
                         this.dispose();
                         break;
                     case "LABTECHNICIAN":
@@ -149,7 +150,9 @@ public class LoginPage extends JFrame {
                         this.dispose();
                         break;
                     case "PHARMACY":
-                        new Pharmacy("9","eyob").showDashboard();
+                        // FIX: Only call the constructor.
+                        // Pharmacy constructor already calls loadPharmacistData and showDashboard.
+                        new Pharmacy(authId);
                         this.dispose();
                         break;
                     default:
