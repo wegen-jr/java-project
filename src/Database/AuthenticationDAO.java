@@ -49,7 +49,10 @@ public class AuthenticationDAO {
                         fullName = getAdminName(conn, authId);
                         break;
                     case "LABTECHNICIAN":
-                            fullName= getLabTechName(conn,authId);
+                        fullName= getLabTechName(conn,authId);
+                        break;
+                    case "PHARMACY":
+                        fullName=getPharmacistName(conn,authId);
                         break;
                         }
 
@@ -109,7 +112,25 @@ public class AuthenticationDAO {
         }
         return null; // Return null if technician is not found
     }
+    public static String getPharmacistName(Connection conn, int authId) throws SQLException {
+        // Matches your specific pharmacists table structure
+        String query = "SELECT first_name, last_name FROM pharmacists WHERE auth_id = ?";
 
+        try (PreparedStatement ps = conn.prepareStatement(query)) {
+            ps.setInt(1, authId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String firstName = rs.getString("first_name");
+                    String lastName = rs.getString("last_name");
+
+                    // Returns combined name (e.g., "John Doe")
+                    return (firstName != null ? firstName : "") +
+                            (lastName != null ? " " + lastName : "");
+                }
+            }
+        }
+        return null; // Return null if pharmacist record is not found
+    }
     // Helper: Get receptionist full name (create receptionists table similarly)
     private static String getReceptionistName(Connection conn, int authId) throws SQLException {
         String query = "SELECT first_name, last_name FROM receptionists WHERE auth_id = ?";

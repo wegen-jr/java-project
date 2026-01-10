@@ -94,13 +94,15 @@ public class LoginPage extends JFrame {
         form.add(btnPanel);
         form.add(Box.createVerticalGlue());
 
-        // LOGIN ACTION WITH ALL SWITCH STATEMENTS
-        // LOGIN ACTION WITH ALL SWITCH STATEMENTS
+        // 1. Set the default button (Enter Key Support)
+        this.getRootPane().setDefaultButton(loginBtn);
+
+// 2. The Action Listener (keeping your design and logic)
         loginBtn.addActionListener(e -> {
-            String inputUser = uNameField.getText();
+            // .trim() handles accidental spaces at the end of username
+            String inputUser = uNameField.getText().trim();
             String inputPass = new String(passField.getPassword());
 
-            // 1. Validation Logic
             if (inputUser.isEmpty() || inputPass.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Username and Password required!");
                 return;
@@ -111,15 +113,13 @@ public class LoginPage extends JFrame {
                 return;
             }
 
-            // 2. Database Call
             Map<String, Object> userData = AuthenticationDAO.authenticateUser(inputUser, inputPass);
 
             if (userData != null) {
-                // 3. DATA EXTRACTION
-                String role = (userData.get("role") != null) ? userData.get("role").toString().trim() : "";
+                // .toUpperCase() ensures "pharmacy", "Pharmacy", and "PHARMACY" all work
+                String role = (userData.get("role") != null) ?
+                        userData.get("role").toString().trim().toUpperCase() : "";
 
-                // --- UPDATED NAME EXTRACTION ---
-                // If full_name is missing in the map, we use the inputUser so it's never "Unknown"
                 String fullName = (userData.get("full_name") != null) ?
                         userData.get("full_name").toString() : inputUser;
 
@@ -128,11 +128,9 @@ public class LoginPage extends JFrame {
                     authId = Integer.parseInt(userData.get("auth_id").toString());
                 }
 
-                // 4. SUCCESS POPUP
                 JOptionPane.showMessageDialog(this, "Login Successful!\nWelcome " + fullName);
 
-                // 5. ROLE-BASED NAVIGATION
-                switch (role.toUpperCase()) {
+                switch (role) {
                     case "DOCTOR":
                         new Doctor(authId).showDashboard();
                         this.dispose();
@@ -150,16 +148,13 @@ public class LoginPage extends JFrame {
                         this.dispose();
                         break;
                     case "PHARMACY":
-                        // FIX: Only call the constructor.
-                        // Pharmacy constructor already calls loadPharmacistData and showDashboard.
-                        new Pharmacy(authId);
+                        new Pharmacy(authId).showDashboard();
                         this.dispose();
                         break;
                     default:
                         JOptionPane.showMessageDialog(this, "Access Error: Unknown role '" + role + "'", "Error", JOptionPane.ERROR_MESSAGE);
                 }
             } else {
-                // 6. FAILURE FEEDBACK
                 JOptionPane.showMessageDialog(this, "Invalid credentials", "Login Failed", JOptionPane.ERROR_MESSAGE);
             }
         });

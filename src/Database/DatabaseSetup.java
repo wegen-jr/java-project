@@ -12,8 +12,8 @@ public class DatabaseSetup {
         try {
             // Connect to MySQL server
             String baseUrl = "jdbc:mysql://localhost:3306/HMS";
-            String username = "root";
-            String password = "eyob4791";
+            String username = "abrshiz";
+            String password = "abrsh123";
 
             Class.forName("com.mysql.cj.jdbc.Driver");
             conn = DriverManager.getConnection(baseUrl, username, password);
@@ -37,13 +37,10 @@ public class DatabaseSetup {
             createMedicalRecordsTable(stmt);
             createBillingTable(stmt);
             createReceptionLogsTable(stmt);
-
-            // Insert default data safely
-            JFrame frame = new JFrame();
-            int res = JOptionPane.showConfirmDialog(frame, "Would you like to start with the default data in the database?", "Default Data Insertion", JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
-
-            if(res == JOptionPane.YES_OPTION) insertDefaultData(conn);
-
+            createLaboratoryTechnicianTable(stmt);
+            createLabRequestsTable(stmt);
+            createPharmacistsTable(stmt);
+            createPrescriptionsTable(stmt);
             System.out.println("🎉 Database initialization complete!");
 
         } catch (Exception e) {
@@ -305,7 +302,6 @@ public class DatabaseSetup {
         }
     }
 
-    // Receptionists
     private static void insertSampleReceptionists(Connection conn) throws SQLException {
         String authSql = "INSERT INTO authentication(username,password,role) VALUES(?,?,?)";
         String recSql = "INSERT INTO receptionists(auth_id,first_name,last_name,contact_number) VALUES(?,?,?,?)";
@@ -343,7 +339,6 @@ public class DatabaseSetup {
         }
     }
 
-    // Admins
     private static void insertSampleAdmins(Connection conn) throws SQLException {
         String authSql = "INSERT INTO authentication(username,password,role) VALUES(?,?,?)";
         String adminSql = "INSERT INTO admins(auth_id,first_name,last_name,contact_number) VALUES(?,?,?,?)";
@@ -381,7 +376,6 @@ public class DatabaseSetup {
         }
     }
 
-    // Patients
     private static void insertSamplePatients(Connection conn) throws SQLException {
         String[][] patients = {
                 {"P001","John"," Doe","doa","1988-05-15","Male","123-456-7890"},
@@ -418,6 +412,83 @@ public class DatabaseSetup {
             e.printStackTrace();
         }
     }
+    private static void createLaboratoryTechnicianTable(Statement stmt) throws SQLException {
+        String sql = "CREATE TABLE IF NOT EXISTS laboratory_technician (" +
+                "labtechnician_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "auth_id INT NOT NULL, " +
+                "first_name VARCHAR(100) NOT NULL, " +
+                "middle_name VARCHAR(100) DEFAULT NULL, " +
+                "last_name VARCHAR(100) NOT NULL, " +
+                "job_title VARCHAR(50) DEFAULT 'Senior Laboratory Technician', " +
+                "department VARCHAR(50) DEFAULT 'Clinical Pathology', " +
+                "qualification VARCHAR(100) DEFAULT NULL, " +
+                "contact_number VARCHAR(20) DEFAULT NULL, " +
+                "email VARCHAR(100) DEFAULT NULL, " +
+                "availability ENUM('Available','Busy','On Leave') DEFAULT 'Available', " +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "CONSTRAINT fk_tech_auth FOREIGN KEY (auth_id) REFERENCES authentication(id) " +
+                "ON DELETE CASCADE ON UPDATE CASCADE" +
+                ") ENGINE=InnoDB";
 
+        stmt.executeUpdate(sql);
+        System.out.println("✅ Laboratory Technician table created");
+    }
+    private static void createLabRequestsTable(Statement stmt) throws SQLException {
+        String sql = "CREATE TABLE IF NOT EXISTS lab_requests (" +
+                "request_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "doctor_id INT NOT NULL, " +
+                "patient_id VARCHAR(20) NOT NULL, " +
+                "test_type VARCHAR(100) DEFAULT NULL, " +
+                "priority VARCHAR(20) DEFAULT NULL, " +
+                "notes_from_doctor TEXT DEFAULT NULL, " +
+                "result_details TEXT DEFAULT NULL, " +
+                "status ENUM('Pending','Confirmed','Completed','Cancelled') DEFAULT 'Pending', " +
+                "request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "CONSTRAINT fk_lab_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(doctor_id) ON DELETE CASCADE, " +
+                "CONSTRAINT fk_lab_patient FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE" +
+                ") ENGINE=InnoDB";
 
+        stmt.executeUpdate(sql);
+        System.out.println("✅ Lab Requests table created");
+    }
+    private static void createPharmacistsTable(Statement stmt) throws SQLException {
+        String sql = "CREATE TABLE IF NOT EXISTS pharmacists (" +
+                "pharmacist_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "auth_id INT NOT NULL, " +
+                "first_name VARCHAR(100) NOT NULL, " +
+                "middle_name VARCHAR(100) DEFAULT NULL, " +
+                "last_name VARCHAR(100) NOT NULL, " +
+                "qualification VARCHAR(100) DEFAULT NULL, " +
+                "license_number VARCHAR(50) DEFAULT NULL, " +
+                "contact_number VARCHAR(15) DEFAULT NULL, " +
+                "email VARCHAR(100) DEFAULT NULL, " +
+                "shift_type ENUM('Day','Night','Rotating') DEFAULT 'Day', " +
+                "status ENUM('Active','On Leave','Inactive') DEFAULT 'Active', " +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "CONSTRAINT fk_pharmacist_auth FOREIGN KEY (auth_id) REFERENCES authentication(id) " +
+                "ON DELETE CASCADE ON UPDATE CASCADE" +
+                ") ENGINE=InnoDB";
+
+        stmt.executeUpdate(sql);
+        System.out.println("✅ Pharmacists table created");
+    }
+    private static void createPrescriptionsTable(Statement stmt) throws SQLException {
+        String sql = "CREATE TABLE IF NOT EXISTS prescriptions (" +
+                "prescription_id INT AUTO_INCREMENT PRIMARY KEY, " +
+                "patient_id VARCHAR(20) NOT NULL, " +
+                "doctor_id INT NOT NULL, " +
+                "medication_name VARCHAR(255) NOT NULL, " +
+                "dosage VARCHAR(100) DEFAULT NULL, " +
+                "instructions TEXT DEFAULT NULL, " +
+                "issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                "status ENUM('Pending', 'Done') DEFAULT 'Pending', " +
+                "CONSTRAINT fk_prescription_patient FOREIGN KEY (patient_id) " +
+                "REFERENCES patients(patient_id) ON DELETE CASCADE, " +
+                "CONSTRAINT fk_prescription_doctor FOREIGN KEY (doctor_id) " +
+                "REFERENCES doctors(doctor_id) ON DELETE CASCADE" +
+                ") ENGINE=InnoDB";
+
+        stmt.executeUpdate(sql);
+        System.out.println("✅ Prescriptions table created successfully");
+    }
 }

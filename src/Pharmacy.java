@@ -1,3 +1,5 @@
+import Database.PharmacyDAO;
+
 import javax.swing.*;
 import javax.swing.border.*;
 import javax.swing.table.*;
@@ -23,44 +25,23 @@ public class Pharmacy extends staffUser {
     private String userId;
     private String usename;
     private String role;
-
-    // Ensure these exist!
     private String licenseNumber;
     private String shiftType;
     private String contactNumber;
-
-    // Change the constructor in your Pharmacy.java to this:
     public Pharmacy(int authId) {
-        // 1. Assign the ID (assuming you change userId to an int or parse it)
         this.userId = String.valueOf(authId);
-        this.role = "PHARMACY";
-
-        // 2. Load the specific pharmacist data (name, license, etc.) from DB
+       // this.role = "PHARMACY";
         loadPharmacistData(authId);
-
-        // 3. Launch the UI immediately
-        showDashboard();
     }
-
-    // Add this helper method to handle the data loading
     private void loadPharmacistData(int loggedInAuthId) {
-        // UPDATED QUERY: Select ALL required columns
-        String query = "SELECT pharmacist_id, first_name, last_name, license_number, shift_type, contact_number FROM pharmacists WHERE auth_id = ?";
-
-        try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791");
-             PreparedStatement pst = conn.prepareStatement(query)) {
-
-            pst.setInt(1, loggedInAuthId);
-            ResultSet rs = pst.executeQuery();
-
+        PharmacyDAO dao = new PharmacyDAO();
+        try (ResultSet rs = dao.getPharmacistRecord(loggedInAuthId)) {
             if (rs.next()) {
-                // 1. Basic Info
                 String fName = rs.getString("first_name");
                 String lName = rs.getString("last_name");
                 this.usename = fName + " " + lName;
                 this.userId = String.valueOf(rs.getInt("pharmacist_id"));
 
-                // 2. ID CARD INFO (This was missing!)
                 this.licenseNumber = rs.getString("license_number");
                 this.shiftType = rs.getString("shift_type");
                 this.contactNumber = rs.getString("contact_number");
@@ -68,11 +49,12 @@ public class Pharmacy extends staffUser {
                 System.out.println("✅ Full Profile Loaded for: " + this.usename);
             }
         } catch (SQLException e) {
+            // Fallback design
             this.usename = "Pharmacist";
+            System.err.println("❌ Error loading pharmacist data: " + e.getMessage());
             e.printStackTrace();
         }
     }
-
     @Override
     void showDashboard() {
         mainFrame = new JFrame("HMS - Pharmacy Division | " + usename);
@@ -106,7 +88,6 @@ public class Pharmacy extends staffUser {
         showOverview();
         mainFrame.setVisible(true);
     }
-
     private JPanel createSidebar() {
         JPanel p = new JPanel();
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
@@ -172,7 +153,6 @@ public class Pharmacy extends staffUser {
         p.add(Box.createVerticalStrut(20));
         return p;
     }
-
     private JButton createNavItem(String text, String iconPath, ActionListener action) {
         JButton btn = new JButton(text);
 
@@ -213,63 +193,53 @@ public class Pharmacy extends staffUser {
         btn.addActionListener(action);
         return btn;
     }
-// ... inside Pharmacy class ...
-
     private void showOverview() {
         contentPanel.removeAll();
+        PharmacyDAO dao = new PharmacyDAO(); // Initialize DAO
 
-        // Stop existing timer if switching back to dashboard to prevent multiple threads
         if (autoRefreshTimer != null) autoRefreshTimer.stop();
 
-        // 1. Initialize the Live Labels
         JLabel pendingValLbl = new JLabel("0", SwingConstants.CENTER);
         JLabel dispensedValLbl = new JLabel("0", SwingConstants.CENTER);
         DefaultTableModel tableModel = new DefaultTableModel(new String[]{"Patient ID", "Medication", "Time", "Status"}, 0){
             @Override
-            public boolean isCellEditable(int row, int column) {
-                return false; // This makes the entire table non-editable
-            }
+            public boolean isCellEditable(int row, int column) { return false; }
         };
 
-
-        // 2. Define the Refresh Logic
+        // 2. Updated Refresh Logic using DAO and DatabaseConnection
         ActionListener refreshAction = e -> {
-            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791")) {
-                // Live Pending Count
-                ResultSet rs1 = conn.createStatement().executeQuery("SELECT COUNT(*) FROM prescriptions WHERE status = 'Pending'");
-                if(rs1.next()) pendingValLbl.setText(String.valueOf(rs1.getInt(1)));
+            try {
+                // Get Counts using DAO
+                pendingValLbl.setText(String.valueOf(dao.getCountByStatus("Pending", false)));
+                dispensedValLbl.setText(String.valueOf(dao.getCountByStatus("Done", true)));
 
-                // Live Dispensed Today Count
-                ResultSet rs2 = conn.createStatement().executeQuery("SELECT COUNT(*) FROM prescriptions WHERE status = 'Done' AND DATE(issued_at) = CURDATE()");
-                if(rs2.next()) dispensedValLbl.setText(String.valueOf(rs2.getInt(1)));
-
-                // Live Table Data
-                ResultSet rs3 = conn.createStatement().executeQuery("SELECT patient_id, medication_name, issued_at, status FROM prescriptions ORDER BY issued_at DESC LIMIT 10");
-                tableModel.setRowCount(0); // Clear old data
-                while(rs3.next()) {
-                    tableModel.addRow(new Object[]{
-                            rs3.getString("patient_id"),
-                            rs3.getString("medication_name"),
-                            rs3.getTimestamp("issued_at").toString().substring(11, 16),
-                            rs3.getString("status")
-                    });
+                // Get Table Data using DAO
+                try (ResultSet rs3 = dao.getRecentActivity()) {
+                    tableModel.setRowCount(0);
+                    while(rs3.next()) {
+                        tableModel.addRow(new Object[]{
+                                rs3.getString("patient_id"),
+                                rs3.getString("medication_name"),
+                                rs3.getTimestamp("issued_at").toString().substring(11, 16),
+                                rs3.getString("status")
+                        });
+                    }
                 }
             } catch (SQLException ex) {
                 System.err.println("Live Update Error: " + ex.getMessage());
             }
         };
 
-        // 3. Start the Timer (Updates every 5 seconds)
+        // 3. Start Timer (Logic remains same)
         autoRefreshTimer = new Timer(5000, refreshAction);
         autoRefreshTimer.start();
-        refreshAction.actionPerformed(null); // Run immediately once on load
+        refreshAction.actionPerformed(null);
 
-        // 4. UI LOGIC (Preserving your exact design)
+        // 4. UI LOGIC (Kept exactly as your design)
         JPanel overlay = new JPanel(new BorderLayout(0, 20));
         overlay.setOpaque(false);
         overlay.setBorder(new EmptyBorder(30, 40, 30, 40));
 
-        // Time-Based Welcome Panel
         JPanel welcomeWrapper = new JPanel(new BorderLayout());
         welcomeWrapper.setOpaque(false);
 
@@ -288,7 +258,6 @@ public class Pharmacy extends staffUser {
         welcomeWrapper.add(welcomeLbl, BorderLayout.NORTH);
         welcomeWrapper.add(dateLbl, BorderLayout.SOUTH);
 
-        // Stats Cards Row - Updated to use the Live Labels
         JPanel header = new JPanel(new GridLayout(1, 2, 25, 0));
         header.setOpaque(false);
         header.add(createLiveStatCard("Pending Requests", pendingValLbl, TEAL));
@@ -315,9 +284,7 @@ public class Pharmacy extends staffUser {
         contentPanel.add(overlay);
         refreshPanel();
     }
-
     private void styleTable(JTable table) {
-        // 1. General Table Properties
         table.setRowHeight(52); // Taller rows are more modern and readable
         table.setShowGrid(false); // Remove old-fashioned grid lines
         table.setIntercellSpacing(new Dimension(0, 0));
@@ -325,25 +292,18 @@ public class Pharmacy extends staffUser {
         table.setSelectionForeground(NAVY);
         table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         table.setBackground(new Color(255, 255, 255, 230)); // Glass effect
-
-        // 2. Header Customization
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(0, 48));
         header.setBackground(NAVY);
         header.setForeground(Color.WHITE);
         header.setFont(new Font("Segoe UI", Font.BOLD, 13));
         header.setReorderingAllowed(false); // Professional look
-
-        // Center the text in the Status column (usually the last column)
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
-
-        // Apply special badge renderer to the Status column
-        // Assuming status is at index 3 in Overview and index 6 in Queue
         int statusIdx = table.getColumnCount() - 1;
         table.getColumnModel().getColumn(statusIdx).setCellRenderer(new StatusBadgeRenderer());
     }
-    class StatusBadgeRenderer extends DefaultTableCellRenderer {
+    private class StatusBadgeRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
             JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
@@ -413,7 +373,6 @@ public class Pharmacy extends staffUser {
         card.add(titleLbl, BorderLayout.SOUTH);
         return card;
     }
-
     private void showInventoryManager() {
         contentPanel.removeAll();
 
@@ -520,8 +479,6 @@ public class Pharmacy extends staffUser {
         contentPanel.add(overlay);
         refreshPanel();
     }
-
-    // Helper method to maintain your layout design
     private void addDetail(JPanel card, String label, String value, int y) {
         // Label (e.g., "LICENSE NUMBER")
         JLabel title = new JLabel(label);
@@ -538,15 +495,10 @@ public class Pharmacy extends staffUser {
         card.add(title);
         card.add(content);
     }
-
-    // Helper method for the ID Card fields
-
-
-
-
-
-     private void showPrescriptionQueue() {
+    private void showPrescriptionQueue() {
         contentPanel.removeAll();
+        PharmacyDAO dao = new PharmacyDAO(); // Initialize DAO
+
         JPanel overlay = new JPanel(new BorderLayout());
         overlay.setOpaque(false);
         overlay.setBorder(new EmptyBorder(25, 25, 25, 25));
@@ -556,7 +508,6 @@ public class Pharmacy extends staffUser {
         title.setForeground(NAVY);
         title.setBorder(new EmptyBorder(0, 0, 20, 0));
 
-        // Columns updated to include Names instead of just IDs
         String[] cols = {"ID", "Patient Name", "Doctor Name", "Medication", "Dosage", "Issued At", "Status"};
         DefaultTableModel model = new DefaultTableModel(cols, 0) {
             @Override
@@ -566,25 +517,8 @@ public class Pharmacy extends staffUser {
         JTable table = new JTable(model);
         styleTable(table);
 
-        try {
-            // Ensure your DB credentials are correct
-            Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791");
-
-            // SQL query using JOINs and CONCAT for full names
-            String query = "SELECT " +
-                    "p.prescription_id, " +
-                    "CONCAT(pat.first_name, ' ', pat.last_name) AS patient_full_name, " +
-                    "CONCAT(doc.first_name, ' ', doc.last_name) AS doctor_full_name, " +
-                    "p.medication_name, p.dosage, p.issued_at, p.status " +
-                    "FROM prescriptions p " +
-                    "JOIN patients pat ON p.patient_id COLLATE utf8mb4_general_ci = pat.patient_id COLLATE utf8mb4_general_ci " +
-                    "JOIN doctors doc ON p.doctor_id = doc.doctor_id " +
-                    "WHERE p.status = 'Pending' " +
-                    "ORDER BY p.issued_at DESC";
-
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(query);
-
+        // --- DATA LOADING LOGIC ---
+        try (ResultSet rs = dao.getPrescriptionQueue()) {
             while (rs.next()) {
                 model.addRow(new Object[]{
                         rs.getInt("prescription_id"),
@@ -596,26 +530,20 @@ public class Pharmacy extends staffUser {
                         rs.getString("status")
                 });
             }
-            conn.close();
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(mainFrame, "Database Error: " + e.getMessage(),
-                    "Query Failed", JOptionPane.ERROR_MESSAGE);
-            e.printStackTrace();
+            JOptionPane.showMessageDialog(mainFrame, "Database Error: " + e.getMessage());
         }
-
-        // ... (Keep existing Table and DB loading code)
 
         JScrollPane scroll = new JScrollPane(table);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         scroll.setBorder(new LineBorder(new Color(255, 255, 255, 80)));
 
-        // Create a container for the buttons to sit side-by-side
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 15, 0)); // 1 row, 2 columns, 15px gap
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 15, 0));
         buttonPanel.setOpaque(false);
-        buttonPanel.setPreferredSize(new Dimension(0, 55)); // Fixed height for the bottom bar
+        buttonPanel.setPreferredSize(new Dimension(0, 55));
 
-        // --- BUTTON 1: MARK AS DISPENSED ---
+        // --- BUTTON 1: MARK AS DONE ---
         JButton processBtn = new JButton("Mark as Done");
         processBtn.setFont(new Font("Segoe UI", Font.BOLD, 14));
         processBtn.setBackground(TEAL);
@@ -627,23 +555,16 @@ public class Pharmacy extends staffUser {
             if (selectedRow != -1) {
                 int prescriptionId = (int) model.getValueAt(selectedRow, 0);
                 try {
-                    Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791");
-                    String updateQuery = "UPDATE prescriptions SET status = 'Done' WHERE prescription_id = ?";
-                    PreparedStatement pstmt = conn.prepareStatement(updateQuery);
-                    pstmt.setInt(1, prescriptionId);
-
-                    if (pstmt.executeUpdate() > 0) {
-                        model.removeRow(selectedRow); // Remove from UI
+                    if (dao.updatePrescriptionStatus(prescriptionId, "Done")) {
+                        model.removeRow(selectedRow);
                         JOptionPane.showMessageDialog(mainFrame, "Status updated to Done.");
                     }
-                    conn.close();
                 } catch (SQLException ex) { ex.printStackTrace(); }
             } else {
                 JOptionPane.showMessageDialog(mainFrame, "Select a prescription first!");
             }
         });
 
-        // --- BUTTON 2: ADD BILL ---
         // --- BUTTON 2: ADD BILL ---
         JButton billBtn = new JButton("Add Bill");
         billBtn.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -654,11 +575,9 @@ public class Pharmacy extends staffUser {
         billBtn.addActionListener(e -> {
             int selectedRow = table.getSelectedRow();
             if (selectedRow != -1) {
-                // 1. Get data from the table
                 int prescriptionId = (int) model.getValueAt(selectedRow, 0);
                 String patientName = (String) model.getValueAt(selectedRow, 1);
 
-                // 2. Ask for the Medication Fee
                 String feeStr = JOptionPane.showInputDialog(mainFrame,
                         "Enter Drug Fee for " + patientName + ":", "Billing - Prescription #" + prescriptionId,
                         JOptionPane.QUESTION_MESSAGE);
@@ -666,40 +585,13 @@ public class Pharmacy extends staffUser {
                 if (feeStr != null && !feeStr.isEmpty()) {
                     try {
                         double medFee = Double.parseDouble(feeStr);
-
-                        // 3. Connect and Insert into billing table
-                        Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/hms", "root", "eyob4791");
-
-                        // First, we need the patient_id (since we only have the name in the table)
-                        String getPatientId = "SELECT patient_id FROM prescriptions WHERE prescription_id = ?";
-                        PreparedStatement pst1 = conn.prepareStatement(getPatientId);
-                        pst1.setInt(1, prescriptionId);
-                        ResultSet rs = pst1.executeQuery();
-
-                        if (rs.next()) {
-                            String patientId = rs.getString("patient_id");
-
-                            // SQL to insert into billing table
-                            String billQuery = "INSERT INTO billing (patient_id, bill_date, other_fee, total_amount, payment_status, created_by) " +
-                                    "VALUES (?, CURDATE(), ?, ?, 'Pending', ?)";
-
-                            PreparedStatement pst2 = conn.prepareStatement(billQuery);
-                            pst2.setString(1, patientId);
-                            pst2.setDouble(2, medFee);
-                            pst2.setDouble(3, medFee); // Total = medFee (assuming other fees are 0 for now)
-                            pst2.setString(4, usename); // From your class variable
-
-                            int result = pst2.executeUpdate();
-                            if (result > 0) {
-                                JOptionPane.showMessageDialog(mainFrame, "Bill Created Successfully for " + patientName);
-                            }
+                        if (dao.createPrescriptionBill(prescriptionId, medFee, usename)) {
+                            JOptionPane.showMessageDialog(mainFrame, "Bill Created Successfully for " + patientName);
                         }
-                        conn.close();
                     } catch (NumberFormatException ex) {
-                        JOptionPane.showMessageDialog(mainFrame, "Invalid Amount! Please enter a number.");
+                        JOptionPane.showMessageDialog(mainFrame, "Invalid Amount!");
                     } catch (SQLException ex) {
                         JOptionPane.showMessageDialog(mainFrame, "DB Error: " + ex.getMessage());
-                        ex.printStackTrace();
                     }
                 }
             } else {
@@ -707,18 +599,16 @@ public class Pharmacy extends staffUser {
             }
         });
 
-        // Add buttons to the sub-panel
         buttonPanel.add(billBtn);
         buttonPanel.add(processBtn);
 
         overlay.add(title, BorderLayout.NORTH);
         overlay.add(scroll, BorderLayout.CENTER);
-        overlay.add(buttonPanel, BorderLayout.SOUTH); // Add the panel containing both buttons
+        overlay.add(buttonPanel, BorderLayout.SOUTH);
 
         contentPanel.add(overlay);
         refreshPanel();
     }
-
     private void refreshPanel() {
         contentPanel.revalidate();
         contentPanel.repaint(); }
