@@ -79,12 +79,13 @@ public class DatabaseSetup {
     private static void createAuthenticationTable(Statement stmt) throws SQLException {
         String sql = "CREATE TABLE IF NOT EXISTS authentication (" +
                 "id INT AUTO_INCREMENT PRIMARY KEY, " +
-                "username VARCHAR(50) UNIQUE NOT NULL, " +
-                "password VARCHAR(255) NOT NULL, " +
+                "username VARCHAR(50) BINARY UNIQUE NOT NULL, " +
+                "password VARCHAR(255) BINARY NOT NULL, " +
                 "role VARCHAR(50) NOT NULL" +
                 ") ENGINE=InnoDB";
+
         stmt.executeUpdate(sql);
-        System.out.println("✅ Authentication table created");
+        System.out.println("✅ Authentication table created (Case-Sensitive)");
     }
 
     private static void createPatientsTable(Statement stmt) throws SQLException {
