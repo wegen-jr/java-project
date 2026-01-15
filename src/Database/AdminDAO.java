@@ -1,5 +1,6 @@
 package Database;
 
+import javax.swing.*;
 import java.sql.*;
 import java.util.Vector;
 import java.util.Map;
@@ -33,6 +34,54 @@ public class AdminDAO {
             }
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+    }
+
+    public static boolean createStaffWithAuth(Map<String, String> authData, Map<String, String> staffData, String role, String tableName) {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false); // Start Transaction
+
+            // 1. Insert into Authentication
+            String authSql = "INSERT INTO authentication (username, password, role) VALUES (?, ?, ?)";
+            int authId = -1;
+            try (PreparedStatement ps = conn.prepareStatement(authSql, Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, authData.get("username"));
+                ps.setString(2, authData.get("password"));
+                ps.setString(2, role);
+                ps.executeUpdate();
+
+                ResultSet rs = ps.getGeneratedKeys();
+                if (rs.next()) authId = rs.getInt(1);
+            }
+
+            // 2. Insert into Doctors using the new authId
+            StringBuilder cols = new StringBuilder("auth_id, ");
+            StringBuilder params = new StringBuilder("?, ");
+            for (String key : staffData.keySet()) {
+                cols.append(key).append(", ");
+                params.append("?, ");
+            }
+            // Remove trailing commas
+            String sql = "INSERT INTO " + tableName  + " (" + cols.substring(0, cols.length()-2) +
+                    ") VALUES (" + params.substring(0, params.length()-2) + ")";
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, authId);
+                int idx = 2;
+                for (String val : staffData.values()) {
+                    ps.setString(idx++, val);
+                }
+                ps.executeUpdate();
+            }
+
+            conn.commit(); // Save changes
+            return true;
+        } catch (SQLException e) {
+            if (conn != null) try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
+            JOptionPane.showMessageDialog(null, "Error: " + e.getMessage());
+            return false;
         }
     }
 
