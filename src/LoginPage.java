@@ -147,7 +147,7 @@ public class LoginPage extends JFrame {
                         new Labratory(authId).showDashboard();
                         this.dispose();
                         break;
-                    case "PHARMACY":
+                    case "PHARMACIST":
                         new Pharmacy(authId).showDashboard();
                         this.dispose();
                         break;

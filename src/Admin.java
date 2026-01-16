@@ -60,10 +60,32 @@ public class Admin extends staffUser {
         // Doctor List: All operations allowed
         addNavButton(navPanel, "Doctor List", "DOCTORS", "doctors", "doctor_id", true, true, true);
 
-        // Appointments: Maybe only allow To Delete and Edit (No manual entry)
-        addNavButton(navPanel, "Appointments", "APPS", "appointments", "appointment_id", true, false, false);
+        // Receptionist List: All operations allowed
+        addNavButton(navPanel, "Receptionist List", "RECEPTIONISTS", "receptionists", "receptionist_id", true, true, true);
 
+        // Pharmacist List: All operations allowed
+        addNavButton(navPanel, "Pharmacist List", "PHARMACIST", "pharmacists", "pharmacist_id", true, true, true);
+
+        // LabTechnician List: All operations allowed
+        addNavButton(navPanel, "LabTechnician List", "LABTECHNICIAN", "laboratory_technician", "labtechnician_id", true, true, true);
+
+        // Lab Requests: can only view
+        addNavButton(navPanel, "Lab Requests", "LABREQUEST", "lab_requests", "request_id", false, false, false);
+
+        // Appointments: can only view
+        addNavButton(navPanel, "Appointments", "APPS", "appointments", "appointment_id", false, false, false);
+
+        // Medical Records: can only view
+        addNavButton(navPanel, "Medical Records", "MEDICALRECORD", "medical_records", "record_id", false, false, false);
+
+        // Prescriptions: can only view
+        addNavButton(navPanel, "Prescriptions", "MEDICALRECORD", "prescriptions", "prescription_id", false, false, false);
+
+        // Billing: can only view
         addNavButton(navPanel, "Billing", "BILL", "billing", "bill_id", false, false, false);
+
+        // Reception Logs: can only view
+        addNavButton(navPanel, "Reception Logs", "RECEPTIONLOG", "reception_logs", "log_id", false, false, false);
 
         // --- LOGOUT AT BOTTOM ---
         JPanel bottomSidebar = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 30));
@@ -79,11 +101,11 @@ public class Admin extends staffUser {
         frame.setVisible(true);
     }
 
-
-
     private JPanel createModernCrudPanel(String tableName, String pkName, boolean canAdd, boolean canEdit, boolean canDelete) {
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBackground(new Color(245, 247, 250));
+
+        String[] staffs = {"doctors", "receptionists", "pharmacists", "laboratory_technician"};
 
         // --- DATA TABLE SETUP ---
         Vector<Vector<Object>> data = new Vector<>();
@@ -127,13 +149,24 @@ public class Admin extends staffUser {
                 if (row != -1) {
                     Object id = model.getValueAt(row, 0);
                     if (JOptionPane.showConfirmDialog(frame, "Delete ID " + id + "?") == 0) {
+                        if(Arrays.asList(staffs).contains(tableName)) {
+                            AdminDAO.deleteStaffWithAuth(tableName, pkName, id);
+                        } else {
                         AdminDAO.deleteRecord(tableName, pkName, id);
+                        }
                         refreshTable(tableName, model, columns);
                     }
                 }
             });
             actionContainer.add(btnDelete);
         }
+
+        JButton btnRefresh = createActionButton("↻ REFRESH", new Color(100, 116, 139)); // Slate Gray
+        btnRefresh.addActionListener(e -> {
+            refreshTable(tableName, model, columns);
+            JOptionPane.showMessageDialog(frame, "Table synchronized with database.");
+        });
+        actionContainer.add(btnRefresh);
 
         mainPanel.add(scroll, BorderLayout.CENTER);
         mainPanel.add(actionContainer, BorderLayout.SOUTH);
@@ -159,21 +192,26 @@ public class Admin extends staffUser {
         Map<String, JComponent> staffFields = new HashMap<>();
         Map<String, JComponent> authFields = new HashMap<>();
 
-        Map<String, String> authData = new HashMap<>();
-        Map<String, String> staffData = new HashMap<>();
+
         Map<String, String> roles = Map.of(
                 "doctors", "DOCTOR",
                 "receptionists", "RECEPTIONIST",
-                "pharmacists", "PHARMACIST"
+                "pharmacists", "PHARMACIST",
+                "laboratory_technician", "LABTECHNICIAN"
         );
 
 
+
         // Section Header: Authentication
-        if (table.equalsIgnoreCase("doctors") || table.equalsIgnoreCase("receptionists") || table.equalsIgnoreCase("pharmacists")) {
+        if (table.equalsIgnoreCase("doctors") ||
+                table.equalsIgnoreCase("receptionists") ||
+                table.equalsIgnoreCase("pharmacists") ||
+                table.equalsIgnoreCase("laboratory_technician")
+        ) {
             addSectionHeader(form, gbc, "🔐 ACCOUNT CREDENTIALS", row++);
 
-            row = addStyledComponent(form, gbc, "Username", authFields, "", row);
-            row = addStyledComponent(form, gbc, "Password", authFields, "", row);
+            row = addStyledComponent(form, gbc, "username", authFields, "", row);
+            row = addStyledComponent(form, gbc, "password", authFields, "", row);
 
             // Separator
             gbc.gridx = 0; gbc.gridy = row++;
@@ -184,7 +222,10 @@ public class Admin extends staffUser {
 
         // 3. Dynamic Fields
         for (String col : cols) {
-            if (col.toLowerCase().contains("id") || col.equalsIgnoreCase("created_at")) continue;
+            if (col.toLowerCase().contains("_id") ||
+                col.equalsIgnoreCase("created_at")) {
+                continue;
+            }
 
             String labelName = col.replace("_", " ").toUpperCase();
             row = addStyledComponent(form, gbc, labelName, staffFields, "", row);
@@ -203,17 +244,21 @@ public class Admin extends staffUser {
 
         if (res == JOptionPane.OK_OPTION) {
             boolean anyError = false;
+            Map<String, String> authData = new HashMap<>();
+            Map<String, String> staffData = new HashMap<>();
 
             authFields.forEach((k, comp) -> authData.put(k, ((JTextField) comp).getText().trim()));
 
             staffFields.forEach((k, comp) -> {
+                String colKey = k.replace(" ", "_").toLowerCase();
                 if (comp instanceof JTextField) {
-                    staffData.put(k, ((JTextField) comp).getText().trim());
+                    staffData.put(colKey, ((JTextField) comp).getText().trim());
                 } else if (comp instanceof JComboBox) {
-                    staffData.put(k, ((JComboBox<?>) comp).getSelectedItem().toString());
+                    staffData.put(colKey, ((JComboBox<?>) comp).getSelectedItem().toString());
                 }
             });
             // ... call DAO ...
+
 
             boolean success = AdminDAO.createStaffWithAuth(authData, staffData, roles.get(table), table);
             if(!success) anyError = true;
@@ -366,7 +411,37 @@ public class Admin extends staffUser {
             }
 
             inputField = combo;
-        } else {
+        } else if(colName.equalsIgnoreCase("shift type")) {
+            String[] options = {"Day","Night","Rotating"};
+            JComboBox<String> combo = new JComboBox<>(options);
+            combo.setPreferredSize(new Dimension(250, 35));
+            combo.setBackground(Color.WHITE);
+
+            // If editing, set the current value
+            if (existingValue != null && !existingValue.isEmpty()) {
+                combo.setSelectedItem(existingValue);
+            } else {
+                combo.setSelectedItem("Day"); // Default
+            }
+
+            inputField = combo;
+        } else if(colName.equalsIgnoreCase("status")) {
+            String[] options = {"Active","On Leave","Inactive"};
+            JComboBox<String> combo = new JComboBox<>(options);
+            combo.setPreferredSize(new Dimension(250, 35));
+            combo.setBackground(Color.WHITE);
+
+            // If editing, set the current value
+            if (existingValue != null && !existingValue.isEmpty()) {
+                combo.setSelectedItem(existingValue);
+            } else {
+                combo.setSelectedItem("Active"); // Default
+            }
+
+            inputField = combo;
+        }
+
+        else {
             // Standard TextField
             JTextField tf = new JTextField(existingValue);
             tf.setPreferredSize(new Dimension(250, 35));
