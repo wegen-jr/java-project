@@ -12,8 +12,8 @@ public class DatabaseSetup {
         try {
             // Connect to MySQL server
             String baseUrl = "jdbc:mysql://localhost:3306/HMS";
-            String username = "phpmyadmin";
-            String password = "wegen@1996";
+            String username = "abrshiz";
+            String password = "abrsh123";
 
             Class.forName("com.mysql.cj.jdbc.Driver");
             conn = DriverManager.getConnection(baseUrl, username, password);
