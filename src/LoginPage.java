@@ -140,7 +140,7 @@ public class LoginPage extends JFrame {
                         this.dispose();
                         break;
                     case "ADMIN":
-                        new Admin(fullName).showDashboard();
+                        new Admin(authId, fullName).showDashboard();
                         this.dispose();
                         break;
                     case "LABTECHNICIAN":

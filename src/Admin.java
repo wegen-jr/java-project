@@ -10,6 +10,7 @@ public class Admin extends staffUser {
     private JPanel contentPanel;
     private CardLayout cardLayout;
     private JButton lastSelectedBtn = null;
+    private int authId;
 
     // Theme Colors
     private final Color NAVY_DARK = new Color(1, 22, 39);
@@ -18,8 +19,9 @@ public class Admin extends staffUser {
     private final Color WARNING_ORANGE = new Color(255, 159, 28);
     private final Color DANGER_RED = new Color(231, 76, 60);
 
-    public Admin(String username) {
+    public Admin(int authId, String username) {
         this.usename = username;
+        this.authId = authId;
 
     }
 
@@ -86,6 +88,9 @@ public class Admin extends staffUser {
 
         // Reception Logs: can only view
         addNavButton(navPanel, "Reception Logs", "RECEPTIONLOG", "reception_logs", "log_id", false, false, false);
+
+        // Reception Logs: can only view
+        addProfileNavButton(navPanel, "👤 My Profile", "PROFILE", authId);
 
         // --- LOGOUT AT BOTTOM ---
         JPanel bottomSidebar = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 30));
@@ -172,6 +177,191 @@ public class Admin extends staffUser {
         mainPanel.add(actionContainer, BorderLayout.SOUTH);
 
         return mainPanel;
+    }
+
+    private JPanel createProfile(int currentAuthId) {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        // 1. Cleaner background color
+        mainPanel.setBackground(new Color(240, 242, 245));
+        mainPanel.setBorder(new EmptyBorder(40, 60, 40, 60)); // Wider outer padding
+
+        Map<String, String> data = AdminDAO.getAdminProfile(currentAuthId);
+
+        // --- HEADING FIX ---
+        JLabel title = new JLabel("Admin Control Center", JLabel.CENTER);
+        title.setFont(new Font("Segoe UI Semibold", Font.BOLD, 28));
+        title.setForeground(new Color(55, 65, 81));
+        // 2. Added 50px bottom padding to separate heading from cards
+        title.setBorder(new EmptyBorder(0, 0, 50, 0));
+        mainPanel.add(title, BorderLayout.NORTH);
+
+        // --- MAIN CONTENT ---
+        JPanel centerPanel = new JPanel(new GridLayout(1, 2, 40, 0)); // 40px gap between cards
+        centerPanel.setOpaque(false);
+
+        // --- LEFT CARD: SECURITY ---
+        NeomorphicPanel securityCard = new NeomorphicPanel();
+        securityCard.setLayout(new BorderLayout());
+        securityCard.setBorder(new EmptyBorder(30, 30, 30, 30));
+
+        // Use BoxLayout to stack items naturally without stretching them
+        JPanel sFields = new JPanel();
+        sFields.setLayout(new BoxLayout(sFields, BoxLayout.Y_AXIS));
+        sFields.setOpaque(false);
+
+        Map<String, JComponent> authInputs = new HashMap<>();
+
+        // Add inputs with the new "Grouped" helper
+        addNeoInput(sFields, "Username", "username", authInputs, data.get("username"), false);
+        sFields.add(Box.createVerticalStrut(20)); // Manual spacing between groups
+        addNeoInput(sFields, "New Password", "password", authInputs, "", true);
+
+        // ADD SPACING HERE instead of inside the button border
+        sFields.add(Box.createVerticalStrut(25));
+
+        JButton btnAuth = createNeoButton("SYNC CREDENTIALS", new Color(99, 102, 241)); // Indigo
+        btnAuth.addActionListener(e -> handleAuthUpdate(currentAuthId, authInputs));
+
+        securityCard.add(sFields, BorderLayout.CENTER);
+        securityCard.add(btnAuth, BorderLayout.SOUTH);
+
+        // --- RIGHT CARD: PERSONAL INFO ---
+        NeomorphicPanel profileCard = new NeomorphicPanel();
+        profileCard.setLayout(new BorderLayout());
+        profileCard.setBorder(new EmptyBorder(30, 30, 30, 30));
+
+        JPanel pFields = new JPanel();
+        pFields.setLayout(new BoxLayout(pFields, BoxLayout.Y_AXIS));
+        pFields.setOpaque(false);
+
+        Map<String, JComponent> infoInputs = new HashMap<>();
+
+        addNeoInput(pFields, "First Name", "first_name", infoInputs, data.get("first_name"), false);
+        pFields.add(Box.createVerticalStrut(15));
+        addNeoInput(pFields, "Last Name", "last_name", infoInputs, data.get("last_name"), false);
+        pFields.add(Box.createVerticalStrut(15));
+        addNeoInput(pFields, "Email Address", "email", infoInputs, data.get("email"), false);
+        pFields.add(Box.createVerticalStrut(15));
+        addNeoInput(pFields, "Phone Number", "contact_number", infoInputs, data.get("contact_number"), false);
+
+        // ADD SPACING HERE
+        pFields.add(Box.createVerticalStrut(25));
+
+        JButton btnInfo = createNeoButton("SAVE PROFILE", new Color(16, 185, 129)); // Emerald Green
+        btnInfo.addActionListener(e -> handleProfileUpdate(currentAuthId, infoInputs));
+
+        profileCard.add(pFields, BorderLayout.CENTER);
+        profileCard.add(btnInfo, BorderLayout.SOUTH);
+
+        centerPanel.add(securityCard);
+        centerPanel.add(profileCard);
+
+        // Wrap centerPanel in another panel to prevent it from stretching fully if screen is huge
+        JPanel contentWrapper = new JPanel(new BorderLayout());
+        contentWrapper.setOpaque(false);
+        contentWrapper.add(centerPanel, BorderLayout.NORTH);
+
+        mainPanel.add(contentWrapper, BorderLayout.CENTER);
+
+        return mainPanel;
+    }
+
+    private void addNeoInput(JPanel container, String label, String key, Map<String, JComponent> map, String val, boolean isPass) {
+        // 1. Create a wrapper for this specific input group
+        JPanel groupPanel = new JPanel(new BorderLayout(0, 5)); // 5px gap between Label and Field
+        groupPanel.setOpaque(false);
+        groupPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70)); // Prevent it from taking too much height
+
+        // 2. The Label (Compact and crisp)
+        JLabel l = new JLabel(label.toUpperCase());
+        l.setFont(new Font("Segoe UI Bold", Font.BOLD, 11));
+        l.setForeground(new Color(100, 116, 139)); // Slate Gray
+
+        // 3. The Input Field (Sleek height)
+        JTextField tf = isPass ? new JPasswordField() : new JTextField(val);
+        tf.setBackground(new Color(240, 242, 245)); // Matches background
+        tf.setForeground(new Color(30, 41, 59));
+        tf.setCaretColor(new Color(30, 41, 59));
+        tf.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+
+        // Fix the "Fat" look: Reduced internal padding (Top/Bottom 8px instead of 10-15px)
+        tf.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(new Color(203, 213, 225), 1, true), // Thinner, subtle border
+                new EmptyBorder(8, 12, 8, 12) // Sleek padding
+        ));
+
+        // Force the preferred height so it doesn't stretch
+        tf.setPreferredSize(new Dimension(200, 40));
+
+        map.put(key, tf);
+
+        groupPanel.add(l, BorderLayout.NORTH);
+        groupPanel.add(tf, BorderLayout.CENTER);
+
+        container.add(groupPanel);
+    }
+
+    private JButton createNeoButton(String text, Color accent) {
+        JButton btn = new JButton(text);
+        btn.setBackground(accent);
+        btn.setForeground(Color.WHITE);
+        btn.setFocusPainted(false);
+        btn.setFont(new Font("Segoe UI Bold", Font.BOLD, 13));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // EXPLICITLY CENTER TEXT
+        btn.setHorizontalAlignment(SwingConstants.CENTER);
+        btn.setVerticalAlignment(SwingConstants.CENTER);
+
+        // FIX: Only use padding for the button itself (Top/Bottom 12px)
+        // We removed the '20px' top margin from here
+        btn.setBorder(new EmptyBorder(12, 0, 12, 0));
+
+        // Hover Effect
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) { btn.setBackground(accent.darker()); }
+            public void mouseExited(java.awt.event.MouseEvent e) { btn.setBackground(accent); }
+        });
+
+        return btn;
+    }
+
+    private void handleAuthUpdate(int authId, Map<String, JComponent> inputs) {
+        String user = ((JTextField) inputs.get("username")).getText().trim();
+        String pass = new String(((JPasswordField) inputs.get("password")).getPassword()).trim();
+
+        if (user.isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Username cannot be empty.");
+            return;
+        }
+
+        // Only update password if something was typed, otherwise keep old password
+        boolean success = AdminDAO.updateAuthCredentials(authId, user, pass);
+
+        if (success) {
+            JOptionPane.showMessageDialog(frame, "Login credentials updated successfully!");
+            logout();
+        } else {
+            JOptionPane.showMessageDialog(frame, "Update failed. Username might already be taken.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void handleProfileUpdate(int authId, Map<String, JComponent> inputs) {
+        Map<String, String> data = new HashMap<>();
+        inputs.forEach((k, comp) -> data.put(k, ((JTextField) comp).getText().trim()));
+
+        if (data.get("first_name").isEmpty() || data.get("last_name").isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Name fields are required.");
+            return;
+        }
+
+        boolean success = AdminDAO.updateAdminPersonalDetails(authId, data);
+
+        if (success) {
+            JOptionPane.showMessageDialog(frame, "Personal information saved!");
+        } else {
+            JOptionPane.showMessageDialog(frame, "Failed to update profile details.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void showCreateDialog(String table, Vector<String> cols, DefaultTableModel model) {
@@ -502,6 +692,36 @@ public class Admin extends staffUser {
 
         container.add(btn);
         contentPanel.add(createModernCrudPanel(table, pk, canAdd, canEdit, canDelete), card);
+    }
+
+    private void addProfileNavButton(JPanel container, String title, String card, int currentAuthId) {
+        JButton btn = new JButton(title);
+        btn.setMaximumSize(new Dimension(280, 50));
+        btn.setBackground(NAVY_DARK);
+        btn.setForeground(new Color(180, 180, 180));
+        btn.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 14));
+        btn.setBorder(new EmptyBorder(0, 35, 0, 0));
+        btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+
+        btn.addActionListener(e -> {
+            // 1. Remove the old profile card and add a fresh one with latest DB data
+            contentPanel.remove(createProfile(currentAuthId)); // cleanup
+            contentPanel.add(createProfile(currentAuthId), card);
+
+            // 2. Show it
+            cardLayout.show(contentPanel, card);
+
+            // 3. UI Styling
+            if(lastSelectedBtn != null) lastSelectedBtn.setForeground(new Color(180, 180, 180));
+            btn.setForeground(Color.WHITE);
+            lastSelectedBtn = btn;
+        });
+
+        container.add(btn);
+        // CRITICAL: Instead of createModernCrudPanel, we add the profile page
+        contentPanel.add(createProfile(currentAuthId), card);
     }
 
     private void refreshTable(String tableName, DefaultTableModel model, Vector<String> cols) {
