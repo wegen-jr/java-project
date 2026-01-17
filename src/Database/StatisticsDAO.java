@@ -1,5 +1,6 @@
 package Database;
 
+import javax.swing.*;
 import java.sql.*;
 import java.util.*;
 
@@ -108,7 +109,7 @@ public class StatisticsDAO {
 
     /* ================= DOCTOR TODAY SCHEDULE ================= */
 
-    public static List<Map<String, Object>> getDoctorTodaySchedule(int doctorId) {
+    public static List<Map<String, Object>> getDoctorSchedule(int doctorId) {
         List<Map<String, Object>> list = new ArrayList<>();
 
         String sql = """
@@ -121,7 +122,6 @@ public class StatisticsDAO {
             FROM appointments a
             JOIN patients p ON a.patient_id = p.patient_id
             WHERE a.doctor_id = ?
-              AND a.appointment_date = CURDATE()
             ORDER BY a.appointment_time
         """;
 
@@ -160,5 +160,21 @@ public class StatisticsDAO {
             System.err.println("Count query error: " + e.getMessage());
         }
         return 0;
+    }
+
+    public static String getDoctorName(int docId) {
+        String docName=null;
+        String sql="select first_name from doctors where doctor_id=?";
+        try {
+            Connection con=DatabaseConnection.getConnection();
+            Statement st=con.createStatement();
+            ResultSet rs=st.executeQuery(sql);
+            if (rs.next()){
+                 docName=rs.getString(3);
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return docName;
     }
 }

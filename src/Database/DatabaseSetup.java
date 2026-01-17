@@ -12,8 +12,8 @@ public class DatabaseSetup {
         try {
             // Connect to MySQL server
             String baseUrl = "jdbc:mysql://localhost:3306/HMS";
-            String username = "root";
-            String password = "root";
+            String username = "phpmyadmin";
+            String password = "wegen@1996";
 
             Class.forName("com.mysql.cj.jdbc.Driver");
             conn = DriverManager.getConnection(baseUrl, username, password);
@@ -41,6 +41,7 @@ public class DatabaseSetup {
             createLabRequestsTable(stmt);
             createPharmacistsTable(stmt);
             createPrescriptionsTable(stmt);
+            createPatientCheckInsTable(stmt);
             System.out.println("🎉 Database initialization complete!");
 
         } catch (Exception e) {
@@ -50,31 +51,22 @@ public class DatabaseSetup {
             closeResources(stmt, conn);
         }
     }
-
-    // Drop all tables in proper order to handle foreign keys
-    private static void dropTables(Statement stmt) throws SQLException {
-        String[] tables = {
-                "reception_logs",
-                "billing",
-                "medical_records",
-                "appointments",
-                "admins",
-                "receptionists",
-                "doctors",
-                "patients",
-                "authentication"
-        };
-
-        for (String table : tables) {
-            try {
-                stmt.executeUpdate("DROP TABLE IF EXISTS " + table);
-                System.out.println("🗑 Dropped table: " + table);
-            } catch (SQLException e) {
-                System.out.println("⚠ Could not drop table " + table + ": " + e.getMessage());
-            }
-        }
+    private static void createPatientCheckInsTable(Statement stmt) throws SQLException {
+        String sql = """
+        CREATE TABLE IF NOT EXISTS patient_checkins (
+            checkin_id INT AUTO_INCREMENT PRIMARY KEY,
+            patient_id VARCHAR(20) NOT NULL,
+            checkin_date DATE NOT NULL,
+            checkin_time TIME NOT NULL,
+            notes TEXT DEFAULT NULL,
+            checked_in_by VARCHAR(50) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB
+        """;
+        stmt.executeUpdate(sql);
+        System.out.println("✅ Patient Check-Ins table created");
     }
-
 
     private static void createAuthenticationTable(Statement stmt) throws SQLException {
         String sql = "CREATE TABLE IF NOT EXISTS authentication (" +
@@ -171,7 +163,7 @@ public class DatabaseSetup {
                 "appointment_date DATE NOT NULL, " +
                 "appointment_time TIME NOT NULL, " +
                 "reason TEXT DEFAULT NULL, " +
-                "status ENUM('Scheduled','Confirmed','Completed','Cancelled','No-show') DEFAULT 'Scheduled', " +
+                "status ENUM('Scheduled','Confirmed','checked-in','Completed','Cancelled','No-show') DEFAULT 'Scheduled', " +
                 "created_by VARCHAR(50) DEFAULT NULL, " +
                 "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                 "FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE, " +

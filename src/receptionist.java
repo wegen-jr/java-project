@@ -3,15 +3,30 @@ import Database.BillingDAO;
 import Database.PatientDAO;
 import Database.StatisticsDAO;
 import Model.DoctorItem;
+import com.toedter.calendar.JDateChooser;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import java.awt.*;
-import java.time.*;
-import java.time.format.*;
-import java.util.*;
-import javax.swing.text.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 public class receptionist extends staffUser {
     private JFrame frame;
     private JPanel mainBackgroundPanel;
@@ -26,13 +41,26 @@ public class receptionist extends staffUser {
     private DefaultTableModel model;
     LocalDateTime now = LocalDateTime.now();
     DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.ENGLISH);
-    DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
     String date = now.format(dateFormatter).toLowerCase();
-    String time = now.format(timeFormatter).toLowerCase();
+    private String userFullName;
+    private int currentAuthId;
+    private JLabel lblNameVal;
+    private JLabel lblPhoneVal;
+    private JLabel lblAgeVal;
+    private JLabel lblGenderVal;
+    private JTextArea txtAddressVal;
 
-    private String username;
-    public receptionist(String username) {
-        this.username = username; // Save passed username
+    public receptionist(int authId) {
+        this.currentAuthId = authId; // Save the ID (e.g., 5)
+
+        // 3. Fetch Name immediately for the Greeting
+        Map<String, String> profile = Database.ReceptionistDAO.getReceptionistProfile(currentAuthId);
+
+        if (profile.containsKey("name")) {
+            this.userFullName = profile.get("name"); // "Anna Smith"
+        } else {
+            this.userFullName = "Receptionist"; // Fallback if profile not created yet
+        }
     }
     // ========== Helper methods ==========
     private JPanel createNavItem(String text, ImageIcon icon, Color textColor) {
@@ -114,17 +142,14 @@ public class receptionist extends staffUser {
                         break;
 
                     case "bills":
-                       switchCenterPanel(createBillingDashboardPanel());
+                        switchCenterPanel(createBillingDashboardPanel());
                         break;
-
+                    case "Profile":
+                        switchCenterPanel(createUserProfilePanel());
+                        break;
                     // ===== QUICK ACTIONS =====
                     case "check_in":
-                        JOptionPane.showMessageDialog(
-                                frame,
-                                "Check-in patient selected",
-                                "Quick Action",
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
+                        switchCenterPanel(createCheckInPanel());
                         break;
 
                     case "new_appointment":
@@ -132,16 +157,11 @@ public class receptionist extends staffUser {
                         break;
 
                     case "search_records":
-                        JOptionPane.showMessageDialog(
-                                frame,
-                                "Search records selected",
-                                "Quick Action",
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
+                        switchCenterPanel(createSearchRecordsPanel());
                         break;
 
                     case "update_info":
-                      switchCenterPanel(createUpdatePatientPanel(model));
+                        switchCenterPanel(createUpdatePatientPanel(model));
                         break;
 
                     case "view_today":
@@ -248,7 +268,7 @@ public class receptionist extends staffUser {
 
         // User wrapper
         JPanel userWrapper = new JPanel(new FlowLayout());
-        JLabel usernameLabel = new JLabel(username);
+        JLabel usernameLabel = new JLabel(userFullName);
         usernameLabel.setForeground(Color.white);
         usernameLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
         JButton logout = new JButton("Logout");
@@ -305,12 +325,14 @@ public class receptionist extends staffUser {
         JPanel appointmentWrapper = createNavItem("Appointment", navIcons[2], Color.WHITE);
         JPanel doctorWrapper = createNavItem("Doctors", navIcons[3], Color.WHITE);
         JPanel billWrapper = createNavItem("Bills", navIcons[4], Color.WHITE);
+        JPanel profileWrapper=createNavItem("Profile",navIcons[5],Color.WHITE);
 
         addNavClickListener(dashboardWrapper, "dashboard");
         addNavClickListener(patientWrapper, "patients");
         addNavClickListener(appointmentWrapper, "appointment");
         addNavClickListener(doctorWrapper, "doctors");
         addNavClickListener(billWrapper, "bills");
+        addNavClickListener(profileWrapper, "Profile");
 
         JSeparator separator1 = new JSeparator();
         separator1.setForeground(new Color(255, 255, 255, 150));
@@ -332,6 +354,8 @@ public class receptionist extends staffUser {
         navContainer.add(doctorWrapper);
         navContainer.add(Box.createVerticalStrut(12));
         navContainer.add(billWrapper);
+        navContainer.add(Box.createVerticalStrut(12));
+        navContainer.add(profileWrapper);
         navContainer.add(Box.createVerticalGlue());
 
         leftPanel.add(navContainer);
@@ -407,7 +431,7 @@ public class receptionist extends staffUser {
         greetingPanel.setBackground(new Color(255, 255, 255, 150));
         greetingPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 
-        JLabel greetingLabel = new JLabel(getGreeting() +" "+username);
+        JLabel greetingLabel = new JLabel(getGreeting() +" "+ userFullName);
         greetingLabel.setFont(title);
         greetingLabel.setForeground(color);
         greetingPanel.add(greetingLabel);
@@ -426,7 +450,7 @@ public class receptionist extends staffUser {
         timeWrapper.setBorder(new EmptyBorder(0, 600, 0, 5));
         timeWrapper.setOpaque(false);
 
-        JLabel wifi = new JLabel(new ImageIcon(actionIcons[5].getImage())); // wifi icon
+        JLabel wifi = new JLabel(new ImageIcon(actionIcons[6].getImage())); // wifi icon
 
         JLabel timeText = new JLabel();
         timeText.setForeground(color);
@@ -484,7 +508,6 @@ public class receptionist extends staffUser {
         addNavClickListener(addPanel, "new_appointment");
         addNavClickListener(searchPanel, "search_records");
         addNavClickListener(updatePanel, "update_info");
-
 
         actionsPanel.add(checkPanel);
         actionsPanel.add(addPanel);
@@ -578,14 +601,15 @@ public class receptionist extends staffUser {
         ImageIcon appointmentIcon = new ImageIcon("assets/appointment.png");
         ImageIcon doctorIcon = new ImageIcon("assets/stethoscope.png");
         ImageIcon portalIcon = new ImageIcon("assets/portal.png");
+        ImageIcon profileIcon=new ImageIcon("assets/account.png");
 
-        ImageIcon[] icons = new ImageIcon[5];
+        ImageIcon[] icons = new ImageIcon[6];
         icons[0] = scaleIcon(dashboardIcon, 20, 20);
         icons[1] = scaleIcon(patientIcon, 20, 20);
         icons[2] = scaleIcon(appointmentIcon, 20, 20);
         icons[3] = scaleIcon(doctorIcon, 20, 20);
         icons[4] = scaleIcon(portalIcon, 30, 30);
-
+        icons[5]=scaleIcon(profileIcon,25,25);
         return icons;
     }
 
@@ -600,16 +624,17 @@ public class receptionist extends staffUser {
         ImageIcon updateIcon = new ImageIcon("assets/update.png");
         ImageIcon showIcon = new ImageIcon("assets/vision.png");
 
-        ImageIcon[] icons = new ImageIcon[14];
-        icons[5] = scaleIcon(wifiIcon, 25, 25);
-        icons[6] = scaleIcon(patients, 25, 25);
-        icons[7] = scaleIcon(bag, 25, 25);
-        icons[8] = scaleIcon(clock, 25, 25);
-        icons[9] = scaleIcon(checkIn, 25, 25);
-        icons[10] = scaleIcon(add, 25, 25);
-        icons[11] = scaleIcon(searchIcon, 25, 25);
-        icons[12] = scaleIcon(updateIcon, 25, 25);
-        icons[13] = scaleIcon(showIcon, 25, 25);
+
+        ImageIcon[] icons = new ImageIcon[15];
+        icons[6] = scaleIcon(wifiIcon, 25, 25);
+        icons[7] = scaleIcon(patients, 25, 25);
+        icons[8] = scaleIcon(bag, 25, 25);
+        icons[9] = scaleIcon(clock, 25, 25);
+        icons[10] = scaleIcon(checkIn, 25, 25);
+        icons[11] = scaleIcon(add, 25, 25);
+        icons[12] = scaleIcon(searchIcon, 25, 25);
+        icons[13] = scaleIcon(updateIcon, 25, 25);
+        icons[14] = scaleIcon(showIcon, 25, 25);
 
         return icons;
     }
@@ -898,8 +923,8 @@ public class receptionist extends staffUser {
         // ===== Top Panel =====
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topPanel.setOpaque(false);
-
-        JLabel titleLabel = new JLabel("Today's Schedule");
+        String docName=StatisticsDAO.getDoctorName(Integer.parseInt(doctorId));
+        JLabel titleLabel = new JLabel("DR "+docName+"'s Schedule");
         titleLabel.setFont(new Font("Serif", Font.BOLD, 24));
         titleLabel.setForeground(new Color(2, 48, 71));
 
@@ -936,7 +961,7 @@ public class receptionist extends staffUser {
 
         // Load schedule
         StatisticsDAO statsDAO = new StatisticsDAO();
-        for (Map<String, Object> a : statsDAO.getDoctorTodaySchedule(Integer.parseInt(doctorId))) {
+        for (Map<String, Object> a : statsDAO.getDoctorSchedule(Integer.parseInt(doctorId))) {
             model.addRow(new Object[]{
                     a.get("time"),
                     a.get("patient"),
@@ -952,7 +977,6 @@ public class receptionist extends staffUser {
 
         return schedulePanel;
     }
-
 
     private JPanel createDoctorDashboardPanel() {
         JPanel doctorPanel = new JPanel(new BorderLayout());
@@ -1004,7 +1028,7 @@ public class receptionist extends staffUser {
         tablePanel.setBackground(new Color(255, 255, 255, 180));
 
         String[] columnNames = {"Doctor ID", "First Name","Middle Name","Last Name", "Specialization", "Contact", "Email", "Status"};
-      DefaultTableModel  doctorTableModel = new DefaultTableModel(columnNames, 0);
+        DefaultTableModel  doctorTableModel = new DefaultTableModel(columnNames, 0);
         JTable doctorTable = new JTable(doctorTableModel);
         doctorTable.setBackground(new Color(255, 255, 255, 180));
         doctorTable.setOpaque(false);
@@ -1139,11 +1163,10 @@ public class receptionist extends staffUser {
         JTextField txtName = new JTextField();
         JTextField txtMName = new JTextField();
         JTextField txtLName = new JTextField();
-        SpinnerDateModel dobModel = new SpinnerDateModel();
-        JSpinner txtDob = new JSpinner(dobModel);
-        JSpinner.DateEditor dobEditor = new JSpinner.DateEditor(txtDob, "yyyy-MM-dd");
-        txtDob.setEditor(dobEditor);
-        txtDob.setValue(new Date());
+        JDateChooser dateChooser=new JDateChooser();
+        dateChooser.setDateFormatString("yyyy-MM-dd");
+        dateChooser.setPreferredSize(new Dimension(150,30));
+        dateChooser.setDate(new Date());
         JComboBox<String> cbGender = new JComboBox<>(new String[]{"Other", "Female", "Male"});
         JTextField txtContact = new JTextField();
         JTextField txtEmail = new JTextField();
@@ -1171,7 +1194,7 @@ public class receptionist extends staffUser {
         addField(panel, gbc, row++, "First Name:", txtName);
         addField(panel, gbc, row++, "Middle Name:", txtMName);
         addField(panel, gbc, row++, "Last Name:", txtLName);
-        addField(panel, gbc, row++, "Date of Birth:", txtDob);
+        addField(panel, gbc, row++, "Date of Birth:", dateChooser);
         addField(panel, gbc, row++, "Gender:", cbGender);
         addField(panel, gbc, row++, "Contact Number:", txtContact);
         addField(panel, gbc, row++, "Email:", txtEmail);
@@ -1201,12 +1224,14 @@ public class receptionist extends staffUser {
             cbBlood.setSelectedIndex(0);
         });
         btnSave.addActionListener(e->{
+            Date selectedDate=dateChooser.getDate();
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 
             String patientId = txtId.getText();
             String firstName = txtName.getText();
             String middleName = txtName.getText();
             String lastName = txtName.getText();
-            String dateOfBirth = ((JSpinner.DateEditor) txtDob.getEditor()).getFormat().format(txtDob.getValue());
+            String dateOfBirth = sdf.format(selectedDate);
             String gender = cbGender.getSelectedItem().toString();
             String contact = txtContact.getText();
             String email = txtEmail.getText();
@@ -1291,6 +1316,11 @@ public class receptionist extends staffUser {
         JTextField txtPatient = new JTextField();
         JComboBox<DoctorItem> cmbDoctor = new JComboBox<>();
 
+        JDateChooser dateChooser=new JDateChooser();
+        dateChooser.setDateFormatString("yyyy-MM-dd");
+        dateChooser.setPreferredSize(new Dimension(150,30));
+        dateChooser.setDate(new Date());
+
         JSpinner timeSpinner = new JSpinner(new SpinnerDateModel());
         timeSpinner.setEditor(new JSpinner.DateEditor(timeSpinner, "HH:mm"));
 
@@ -1312,7 +1342,8 @@ public class receptionist extends staffUser {
         int row = 0;
         addField(panel, gbc, row++, "Patient ID:", txtPatient);
         addField(panel, gbc, row++, "Doctor:", cmbDoctor);
-        addField(panel, gbc, row++, "Time:", timeSpinner);
+        addField(panel, gbc,  row++, "Appointment date:",dateChooser);
+        addField(panel, gbc, row++, "Appointment Time:", timeSpinner);
         addField(panel, gbc, row++, "Reason:", reasonScroll);
 
         gbc.gridx = 0;
@@ -1328,6 +1359,7 @@ public class receptionist extends staffUser {
             cmbDoctor.setSelectedIndex(-1);
             txtReason.setText("");
             timeSpinner.setValue(new Date());
+            dateChooser.setDate(new Date());
         });
 
         // Save button logic
@@ -1336,13 +1368,9 @@ public class receptionist extends staffUser {
             String patientId = txtPatient.getText().trim();
             DoctorItem selectedDoctor = (DoctorItem) cmbDoctor.getSelectedItem();
             String reason = txtReason.getText().trim();
+            Date selectedDate = dateChooser.getDate();
 
-            LocalTime time = ((Date) timeSpinner.getValue())
-                    .toInstant()
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalTime();
-
-            if (patientId.isEmpty() || selectedDoctor == null || reason.isEmpty()) {
+            if (patientId.isEmpty() || selectedDoctor == null || reason.isEmpty() || selectedDate == null) {
                 JOptionPane.showMessageDialog(
                         panel,
                         "Please fill all fields",
@@ -1352,17 +1380,25 @@ public class receptionist extends staffUser {
                 return;
             }
 
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            String formattedDate = sdf.format(selectedDate);
+
+            LocalTime time = ((Date) timeSpinner.getValue())
+                    .toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalTime();
+
             boolean success = AppointmentDAO.addAppointment(
                     patientId,
                     selectedDoctor.getDoctorId(),
-                    LocalDate.now(),
+                    formattedDate,
                     time,
                     reason,
-                    username
+                    userFullName
             );
 
             if (success) {
-                loadTodayAppointments(tableModel);
+                loadAppointments(tableModel);
                 JOptionPane.showMessageDialog(panel, "Appointment scheduled successfully!");
                 cardLayout.show(contentPanel, "TABLE");
             } else {
@@ -1374,15 +1410,554 @@ public class receptionist extends staffUser {
                 );
             }
         });
-
         return panel;
     }
+    public JPanel createCheckInPanel() {
+        // 1. MAIN CONTAINER (Matches your AppointmentPanel style)
+        JPanel checkInPanel = new JPanel(new BorderLayout());
+        checkInPanel.setBackground(new Color(255, 255, 255, 150));
 
 
-    private void loadTodayAppointments(DefaultTableModel model) {
+        // ================= TITLE & CONTROLS PANEL =================
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setBackground(new Color(255, 255, 255, 150));
+        titlePanel.setOpaque(false);
+        titlePanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        // -- Left Side: Title --
+        JLabel titleLabel = new JLabel("Patient Check-In", SwingConstants.LEFT);
+        titleLabel.setFont(new Font("Serif", Font.BOLD, 28));
+        titleLabel.setForeground(new Color(2, 48, 71));
+
+        // -- Right Side: Input & Buttons (FlowLayout) --
+        JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        controlsPanel.setOpaque(false);
+
+        // Input Field
+        JLabel lblId = new JLabel("Appt ID:");
+        lblId.setFont(new Font("SansSerif", Font.BOLD, 14));
+        lblId.setForeground(new Color(2, 48, 71));
+
+        JTextField txtApptId = new JTextField(10); // Width 10
+        txtApptId.setPreferredSize(new Dimension(100, 35));
+        txtApptId.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        // Confirm Button
+        JButton btnCheckIn = new JButton("Confirm Check-In");
+        styleButton(btnCheckIn, new Color(2, 48, 71));
+
+        // Refresh Button
+        JButton btnRefresh = new JButton("Refresh");
+        styleButton(btnRefresh, new Color(2, 48, 71));
+
+        // Add to Controls Panel
+        controlsPanel.add(lblId);
+        controlsPanel.add(txtApptId);
+        controlsPanel.add(btnCheckIn);
+        controlsPanel.add(btnRefresh);
+
+        // Add to Title Panel
+        titlePanel.add(titleLabel, BorderLayout.WEST);
+        titlePanel.add(controlsPanel, BorderLayout.EAST);
+
+        // ================= TABLE SECTION =================
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setOpaque(false); // Transparent to show background
+        tablePanel.setBorder(new EmptyBorder(0, 20, 20, 20)); // Padding around table
+
+        String[] columnNames = {"ID", "Patient ID", "Doctor ID", "Time", "Status"};
+        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        // Apply your Custom Table Style
+        JTable table = new JTable(tableModel);
+        table.setBackground(new Color(255, 255, 255, 200)); // Slightly more opaque for readability
+        table.setOpaque(true);
+        table.setForeground(new Color(2, 48, 71));
+        table.setRowHeight(25); // Slightly taller for better look
+        table.setFont(new Font("Arial", Font.PLAIN, 14));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setGridColor(new Color(2, 48, 71));
+
+        // Header Styling
+        table.getTableHeader().setOpaque(true);
+        table.getTableHeader().setBackground(new Color(2, 48, 71));
+        table.getTableHeader().setForeground(Color.WHITE);
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 14));
+
+        // ScrollPane Styling
+        JScrollPane tableScroll = new JScrollPane(table);
+        tableScroll.setOpaque(false);
+        tableScroll.getViewport().setOpaque(false);
+
+        tablePanel.add(tableScroll, BorderLayout.CENTER);
+
+        // ================= LOGIC & LISTENERS =================
+
+        // 1. Load Data on Startup
+        AppointmentDAO.loadTodayAppointments(tableModel);
+
+        // 2. Table Click Listener (Auto-fill ID)
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int selectedRow = table.getSelectedRow();
+                if (selectedRow != -1) {
+                    String id = table.getValueAt(selectedRow, 0).toString();
+                    txtApptId.setText(id);
+                }
+            }
+        });
+
+        // 3. Refresh Action
+        btnRefresh.addActionListener(e -> {
+            AppointmentDAO.loadTodayAppointments(tableModel);
+            txtApptId.setText("");
+        });
+
+        // 4. Check-In Action
+        btnCheckIn.addActionListener(e -> {
+            String idText = txtApptId.getText().trim();
+
+            if (idText.isEmpty()) {
+                JOptionPane.showMessageDialog(checkInPanel, "Please select an appointment or enter an ID.");
+                return;
+            }
+
+            try {
+                int apptId = Integer.parseInt(idText);
+
+                // --- DAO VALIDATION ---
+                String validationMsg = AppointmentDAO.validateCheckIn(apptId);
+
+                if (!validationMsg.equals("VALID")) {
+                    JOptionPane.showMessageDialog(checkInPanel, validationMsg, "Check-In Failed", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                // --- DAO EXECUTION ---
+                boolean success = AppointmentDAO.performCheckIn(apptId);
+
+                if (success) {
+                    JOptionPane.showMessageDialog(checkInPanel, "Success! Patient Checked In.");
+                    AppointmentDAO.loadTodayAppointments(tableModel); // Refresh table
+                    txtApptId.setText("");
+                } else {
+                    JOptionPane.showMessageDialog(checkInPanel, "Database Error.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(checkInPanel, "ID must be a number.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // ================= FINAL ASSEMBLY =================
+        checkInPanel.add(titlePanel, BorderLayout.NORTH);
+        checkInPanel.add(tablePanel, BorderLayout.CENTER);
+
+        return checkInPanel;
+    }
+
+    // Helper method to keep button styling consistent and clean
+    private void styleButton(JButton btn, Color bgColor) {
+        btn.setBackground(bgColor);
+        btn.setPreferredSize(new Dimension(160, 35)); // Adjusted size
+        btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false); // Makes it look flatter/modern
+    }
+
+    public JPanel createSearchRecordsPanel() {
+
+        // --- 1. MAIN CONTAINER (FIXED PAINTING) ---
+        JPanel mainPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(new Color(255, 255, 255, 150));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
+        mainPanel.setOpaque(false);
+
+        // --- 2. HEADER ---
+        JPanel headerPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+            }
+        };
+        headerPanel.setOpaque(false);
+        headerPanel.setBorder(new EmptyBorder(20, 20, 10, 20));
+
+        JLabel titleLabel = new JLabel("Search Medical Records", SwingConstants.LEFT);
+        titleLabel.setFont(new Font("Serif", Font.BOLD, 28));
+        titleLabel.setForeground(new Color(2, 48, 71));
+
+        JPanel searchControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        searchControls.setOpaque(false);
+
+        JLabel lblSearch = new JLabel("Patient ID:");
+        lblSearch.setFont(new Font("SansSerif", Font.BOLD, 14));
+        lblSearch.setForeground(new Color(2, 48, 71));
+
+        JTextField txtSearchId = new JTextField(12);
+        txtSearchId.setPreferredSize(new Dimension(120, 35));
+        txtSearchId.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        JButton btnSearch = new JButton("Search");
+        styleButton(btnSearch, new Color(2, 48, 71));
+
+        searchControls.add(lblSearch);
+        searchControls.add(txtSearchId);
+        searchControls.add(btnSearch);
+
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        headerPanel.add(searchControls, BorderLayout.EAST);
+
+        // --- 3. CONTENT PANEL (FIXED PAINTING) ---
+        JPanel contentPanel = new JPanel(new GridBagLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(new Color(255, 255, 255, 150));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
+        contentPanel.setOpaque(false);
+        contentPanel.setBorder(new EmptyBorder(0, 20, 20, 20));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+
+        JPanel profilePanel = createProfilePanel();
+
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.weighty = 0.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(0, 0, 15, 0);
+        contentPanel.add(profilePanel, gbc);
+
+        // --- HISTORY TABLE ---
+        String[] columns = {"Visit Date", "Doctor", "Diagnosis/Reason", "Prescription", "Status"};
+        DefaultTableModel historyModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int col) {
+                return false;
+            }
+        };
+
+        JTable historyTable = new JTable(historyModel);
+        styleTable(historyTable);
+        historyTable.setFillsViewportHeight(true);
+        historyTable.setRowHeight(28);
+
+        JScrollPane tableScroll = new JScrollPane(historyTable);
+        tableScroll.setOpaque(false);
+        tableScroll.getViewport().setOpaque(false);
+        tableScroll.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(2, 48, 71)), "Visit History",
+                TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("SansSerif", Font.BOLD, 16),
+                new Color(2, 48, 71)));
+
+        gbc.gridy = 1;
+        gbc.weighty = 1.0;
+        gbc.fill = GridBagConstraints.BOTH;
+        contentPanel.add(tableScroll, gbc);
+
+        // --- SEARCH LOGIC ---
+        btnSearch.addActionListener(e -> {
+            String id = txtSearchId.getText().trim();
+
+            if (id.isEmpty()) {
+                JOptionPane.showMessageDialog(mainPanel, "Please enter a Patient ID.");
+                return;
+            }
+
+            clearFields(historyModel); // clear old content first
+
+            String[] data = PatientDAO.getPatientProfile(id);
+
+            if (data != null) {
+                lblNameVal.setText(data[0]);
+                lblPhoneVal.setText(data[1]);
+                lblAgeVal.setText(data[2]);
+                lblGenderVal.setText(data[3]);
+                txtAddressVal.setText(data[4]);
+
+                PatientDAO.loadPatientHistory(id, historyModel);
+            } else {
+                JOptionPane.showMessageDialog(mainPanel, "Patient not found.");
+            }
+
+            contentPanel.revalidate();
+            contentPanel.repaint();
+        });
+
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+        mainPanel.add(contentPanel, BorderLayout.CENTER);
+
+        return mainPanel;
+    }
+
+    // ===== PROFILE PANEL (FIXED PAINTING) =====
+    private JPanel createProfilePanel() {
+
+        JPanel p = new JPanel(new GridBagLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(new Color(255, 255, 255, 200));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
+        p.setOpaque(false);
+        p.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(2, 48, 71)), "Patient Details",
+                TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("SansSerif", Font.BOLD, 16),
+                new Color(2, 48, 71)));
+
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(5, 15, 5, 15);
+        g.fill = GridBagConstraints.HORIZONTAL;
+        g.weightx = 0.5;
+
+        lblNameVal = createValueLabel();
+        lblPhoneVal = createValueLabel();
+        lblAgeVal = createValueLabel();
+        lblGenderVal = createValueLabel();
+
+        txtAddressVal = new JTextArea(2, 20);
+        txtAddressVal.setEditable(false);
+        txtAddressVal.setOpaque(false);
+        txtAddressVal.setFont(new Font("SansSerif", Font.BOLD, 14));
+        txtAddressVal.setForeground(new Color(50, 50, 50));
+        txtAddressVal.setLineWrap(true);
+
+        addLabelPair(p, g, 0, 0, "Name:", lblNameVal);
+        addLabelPair(p, g, 1, 0, "Age:", lblAgeVal);
+
+        addLabelPair(p, g, 0, 1, "Phone:", lblPhoneVal);
+        addLabelPair(p, g, 1, 1, "Gender:", lblGenderVal);
+
+        g.gridx = 0;
+        g.gridy = 2;
+        JLabel lblAddr = new JLabel("Address:");
+        lblAddr.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        lblAddr.setForeground(new Color(2, 48, 71));
+        p.add(lblAddr, g);
+
+        g.gridx = 1;
+        g.gridwidth = 3;
+        p.add(txtAddressVal, g);
+
+        return p;
+    }
+
+    // ===== HELPERS =====
+    private void addLabelPair(JPanel p, GridBagConstraints g, int col, int row, String title, JLabel valueLabel) {
+        g.gridx = col * 2;
+        g.gridy = row;
+        g.gridwidth = 1;
+
+        JLabel lblTitle = new JLabel(title);
+        lblTitle.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        lblTitle.setForeground(new Color(2, 48, 71));
+        p.add(lblTitle, g);
+
+        g.gridx = (col * 2) + 1;
+        p.add(valueLabel, g);
+    }
+
+    private JLabel createValueLabel() {
+        JLabel l = new JLabel("-");
+        l.setFont(new Font("SansSerif", Font.BOLD, 14));
+        l.setForeground(new Color(50, 50, 50));
+        return l;
+    }
+
+    private void clearFields(DefaultTableModel model) {
+        lblNameVal.setText("-");
+        lblPhoneVal.setText("-");
+        lblAgeVal.setText("-");
+        lblGenderVal.setText("-");
+        txtAddressVal.setText("");
+        model.setRowCount(0);
+    }
+    private void styleTable(JTable table) {
+        table.setBackground(new Color(255, 255, 255, 180));
+        table.setOpaque(true);
+        table.setForeground(new Color(2, 48, 71));
+        table.setRowHeight(25);
+        table.setFont(new Font("Arial", Font.PLAIN, 14));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setGridColor(new Color(2, 48, 71));
+        table.getTableHeader().setOpaque(true);
+        table.getTableHeader().setBackground(new Color(2, 48, 71));
+        table.getTableHeader().setForeground(Color.WHITE);
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 14));
+    }
+    // 1. MAIN METHOD: Creates the Profile Card Panel
+    private JPanel createUserProfilePanel() {
+        // --- 1. Main Container ---
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        mainPanel.setOpaque(false);
+
+        // --- 2. Fetch Data ---
+        Map<String, String> userInfo = Database.ReceptionistDAO.getReceptionistProfile(currentAuthId);
+
+        // Fallback if user not found (prevents crash)
+        if (userInfo.isEmpty()) {
+            userInfo.put("name", "unknown");
+            userInfo.put("email", "N/A");
+            userInfo.put("phone", "N/A");
+            userInfo.put("id", "N/A");
+        }
+
+        // --- 3. The Card Panel ---
+        JPanel cardPanel = new JPanel(new BorderLayout());
+        cardPanel.setPreferredSize(new Dimension(420, 500)); // Adjusted size
+        cardPanel.setBackground(Color.WHITE);
+        cardPanel.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(new Color(2, 48, 71), 1, true),
+                new EmptyBorder(30, 40, 30, 40)
+        ));
+
+        // --- HEADER SECTION ---
+        JPanel headerPanel = new JPanel();
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setBackground(Color.WHITE);
+
+        // Avatar
+        JLabel profileImage = new JLabel(createRoundIcon(userInfo.get("name"), 90));
+        profileImage.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Name
+        JLabel lblName = new JLabel(userInfo.get("name"));
+        lblName.setFont(new Font("Serif", Font.BOLD, 24));
+        lblName.setForeground(new Color(2, 48, 71));
+        lblName.setAlignmentX(Component.CENTER_ALIGNMENT);
+        lblName.setBorder(new EmptyBorder(10, 0, 5, 0));
+
+        // Role
+        JLabel lblRole = new JLabel("Receptionist");
+        lblRole.setFont(new Font("SansSerif", Font.BOLD, 14));
+        lblRole.setForeground(Color.GRAY);
+        lblRole.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        headerPanel.add(profileImage);
+        headerPanel.add(lblName);
+        headerPanel.add(lblRole);
+        headerPanel.add(Box.createVerticalStrut(25));
+
+        // --- DETAILS SECTION ---
+        JPanel detailsPanel = new JPanel(new GridBagLayout());
+        detailsPanel.setBackground(Color.WHITE);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(8, 0, 8, 0);
+
+        // We use a counter to ensure rows don't overlap
+        int rowIndex = 0;
+
+        addProfileRow(detailsPanel, gbc, rowIndex, "Employee ID", userInfo.get("id"));
+        rowIndex += 2; // Move down 2 spots (1 for data, 1 for line)
+
+        addProfileRow(detailsPanel, gbc, rowIndex, "Email", userInfo.get("email"));
+        rowIndex += 2;
+
+        addProfileRow(detailsPanel, gbc, rowIndex, "Phone", userInfo.get("phone"));
+        // rowIndex += 2; // If you add Address back later, uncomment this
+
+
+        // Assemble
+        cardPanel.add(headerPanel, BorderLayout.NORTH);
+        cardPanel.add(detailsPanel, BorderLayout.CENTER);
+        
+
+        mainPanel.add(cardPanel);
+        return mainPanel;
+    }
+
+    // --- Helper 1: Add Data Row (Fixed Layout) ---
+    private void addProfileRow(JPanel panel, GridBagConstraints gbc, int row, String title, String value) {
+        // Label (Left)
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.weightx = 0.0;
+        JLabel lblTitle = new JLabel(title);
+        lblTitle.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        lblTitle.setForeground(Color.GRAY);
+        panel.add(lblTitle, gbc);
+
+        // Value (Right)
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        JLabel lblValue = new JLabel(value);
+        lblValue.setFont(new Font("SansSerif", Font.BOLD, 14));
+        lblValue.setForeground(new Color(50, 50, 50));
+        lblValue.setHorizontalAlignment(SwingConstants.RIGHT);
+        panel.add(lblValue, gbc);
+
+        // Line (Below)
+        gbc.gridx = 0;
+        gbc.gridy = row + 1;
+        gbc.gridwidth = 2; // Span full width
+        JSeparator sep = new JSeparator();
+        sep.setForeground(new Color(240, 240, 240));
+        panel.add(sep, gbc);
+
+        // Reset
+        gbc.gridwidth = 1;
+    }
+
+    // --- Helper 2: Create Round Icon ---
+    private Icon createRoundIcon(String name, int size) {
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        g2.setColor(new Color(2, 48, 71));
+        g2.fillOval(0, 0, size, size);
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("SansSerif", Font.BOLD, size / 2));
+        FontMetrics fm = g2.getFontMetrics();
+
+        String initials = "";
+        if (name != null && !name.trim().isEmpty()) {
+            String[] parts = name.split(" ");
+            initials += parts[0].charAt(0);
+            if (parts.length > 1) initials += parts[1].charAt(0);
+        } else {
+            initials = "U";
+        }
+
+        int x = (size - fm.stringWidth(initials.toUpperCase())) / 2;
+        int y = ((size - fm.getHeight()) / 2) + fm.getAscent();
+        g2.drawString(initials.toUpperCase(), x, y);
+
+        g2.dispose();
+        return new ImageIcon(img);
+    }
+    private void loadAppointments(DefaultTableModel model) {
         model.setRowCount(0);
 
-        for (Map<String,Object> row : AppointmentDAO.getTodayAppointments()) {
+        for (Map<String,Object> row : AppointmentDAO.getAppointments()) {
             model.addRow(new Object[]{
                     row.get("appointment_id"),
                     row.get("patient_name"),
@@ -1482,7 +2057,7 @@ public class receptionist extends staffUser {
         appointmentPanel.add(contentPanel, BorderLayout.CENTER);
 
         // ===== Load table data =====
-        loadTodayAppointments(appointmentTableModel);
+        loadAppointments(appointmentTableModel);
 
         return appointmentPanel;
     }

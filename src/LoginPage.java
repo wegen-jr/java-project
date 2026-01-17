@@ -136,7 +136,7 @@ public class LoginPage extends JFrame {
                         this.dispose();
                         break;
                     case "RECEPTIONIST":
-                        new receptionist(fullName).showDashboard();
+                        new receptionist(authId).showDashboard();
                         this.dispose();
                         break;
                     case "ADMIN":

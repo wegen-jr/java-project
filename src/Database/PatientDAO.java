@@ -1,11 +1,12 @@
 package Database;
+import javax.swing.table.DefaultTableModel;
 import java.sql.*;
+import java.sql.Date;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.Period;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class PatientDAO {
 
@@ -164,48 +165,64 @@ public class PatientDAO {
             return false;
         }
     }
-
-
-    // Delete patient
-    public static boolean deletePatient(String patientId) {
-        String query = "DELETE FROM patients WHERE patient_id = ?";
+    // 1. Fetch Patient Basic Info
+    public static String[] getPatientProfile(String id) {
+        String sql = "SELECT * FROM patients WHERE patient_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setString(1, patientId);
-            return pstmt.executeUpdate() > 0;
-
-        } catch (SQLException e) {
-            System.err.println("Error deleting patient: " + e.getMessage());
-            return false;
-        }
-    }
-
-    // Generate new patient ID
-    public static String generatePatientId() {
-        String query = "SELECT MAX(patient_id) as max_id FROM patients WHERE patient_id LIKE 'P%'";
-
-        try (Connection conn = DatabaseConnection.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
+            pstmt.setString(1, id);
+            ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
-                String maxId = rs.getString("max_id");
-                if (maxId != null && maxId.startsWith("P")) {
-                    try {
-                        int num = Integer.parseInt(maxId.substring(1)) + 1;
-                        return String.format("P%03d", num);
-                    } catch (NumberFormatException e) {
-                        return "P001";
-                    }
-                }
+                LocalDate dob = rs.getDate("date_of_birth").toLocalDate();
+                int age = Period.between(dob, LocalDate.now()).getYears();
+
+                return new String[] {
+                        rs.getString("first_name") + " " + rs.getString("middle_name"),
+                        rs.getString("contact_number"),
+                        String.valueOf(age),          // ✅ AGE instead of DOB
+                        rs.getString("gender"),
+                        rs.getString("address")
+                };
             }
+
         } catch (SQLException e) {
-            System.err.println("Error generating patient ID: " + e.getMessage());
+            e.printStackTrace();
         }
-        return "P001";
+        return null; // Patient not found
     }
 
+    // 2. Fetch Patient History (Appointments)
+    public static void loadPatientHistory(String patientId, DefaultTableModel model) {
+        model.setRowCount(0);
 
+        // This query joins appointments with doctors to give readable names
+        String sql = "SELECT a.appointment_date, d.first_name, d.last_name, a.reason, a.status " +
+                "FROM appointments a " +
+                "JOIN doctors d ON a.doctor_id = d.doctor_id " +
+                "WHERE a.patient_id = ? " +
+                "ORDER BY a.appointment_date DESC";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, patientId);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Vector<Object> row = new Vector<>();
+                row.add(rs.getDate("appointment_date"));
+                row.add("Dr. " + rs.getString("first_name") + " " + rs.getString("last_name"));
+                row.add(rs.getString("reason"));
+                row.add("-"); // Placeholder for prescription if you don't have that table yet
+                row.add(rs.getString("status"));
+                model.addRow(row);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 }

@@ -14,7 +14,7 @@ public class AppointmentDAO {
     public static boolean addAppointment(
             String patientId,
             int doctorId,
-            LocalDate date,
+            String date,
             LocalTime time,
             String reason,
             String createdBy
@@ -44,7 +44,7 @@ public class AppointmentDAO {
     }
 
     // ---------------- TODAY APPOINTMENTS (LIST) ----------------
-    public static List<Map<String, Object>> getTodayAppointments() {
+    public static List<Map<String, Object>> getAppointments() {
         List<Map<String, Object>> list = new ArrayList<>();
 
         String sql = """
@@ -58,7 +58,6 @@ public class AppointmentDAO {
             FROM appointments a
             JOIN patients p ON a.patient_id = p.patient_id
             JOIN doctors d ON a.doctor_id = d.doctor_id
-            WHERE a.appointment_date = CURDATE()
             ORDER BY a.appointment_time
         """;
 
@@ -144,7 +143,90 @@ public class AppointmentDAO {
         }
         return list;
     }
+    public static String validateCheckIn(int appointmentId) {
+        String sql = "SELECT appointment_date, status FROM appointments WHERE appointment_id = ?";
 
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, appointmentId);
+            ResultSet rs = pstmt.executeQuery();
+
+            // A. Check Existence
+            if (!rs.next()) {
+                return "Error: Appointment ID " + appointmentId + " not found.";
+            }
+
+            // B. Check Date (Must be TODAY)
+            LocalDate appDate = rs.getDate("appointment_date").toLocalDate();
+            LocalDate today = LocalDate.now();
+
+            if (!appDate.equals(today)) {
+                return "Error: This appointment is for " + appDate + ". You can only check in on " + today + ".";
+            }
+
+            // C. Check Status
+            String status = rs.getString("status");
+            if ("Checked-In".equalsIgnoreCase(status)) {
+                return "Error: Patient is already checked in.";
+            }
+            if ("Cancelled".equalsIgnoreCase(status) || "No-show".equalsIgnoreCase(status)) {
+                return "Error: Cannot check in. Status is " + status + ".";
+            }
+            if ("Completed".equalsIgnoreCase(status)) {
+                return "Error: Appointment is already finished.";
+            }
+
+            return "VALID";
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return "Database Error: " + e.getMessage();
+        }
+    }
+
+    // 2. UPDATE STATUS METHOD
+    public static boolean performCheckIn(int appointmentId) {
+        String sql = "UPDATE appointments SET status = 'Checked-In' WHERE appointment_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, appointmentId);
+            return pstmt.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static void loadTodayAppointments(DefaultTableModel model) {
+        model.setRowCount(0);
+        // Only show appointments scheduled for TODAY that haven't been processed yet
+        String sql = "SELECT appointment_id, patient_id, doctor_id, appointment_time, status " +
+                "FROM appointments " +
+                "WHERE appointment_date = CURRENT_DATE() " +
+                "ORDER BY appointment_time ASC";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Vector<Object> row = new Vector<>();
+                row.add(rs.getInt("appointment_id"));
+                row.add(rs.getString("patient_id"));
+                row.add(rs.getInt("doctor_id"));
+                row.add(rs.getTime("appointment_time"));
+                row.add(rs.getString("status"));
+                model.addRow(row);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
     // ---------------- LOAD DOCTORS INTO COMBO ----------------
     public static void loadDoctors(JComboBox<DoctorItem> comboBox) {
         comboBox.removeAllItems();
