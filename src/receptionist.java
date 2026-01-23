@@ -1887,7 +1887,7 @@ public class receptionist extends staffUser {
         // Assemble
         cardPanel.add(headerPanel, BorderLayout.NORTH);
         cardPanel.add(detailsPanel, BorderLayout.CENTER);
-        
+
 
         mainPanel.add(cardPanel);
         return mainPanel;
@@ -2172,18 +2172,27 @@ public class receptionist extends staffUser {
 
     // ===== Create Add Bill Form Panel =====
     private JPanel createAddBillFormPanel(DefaultTableModel tableModel) {
+
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(new Color(255, 255, 255, 180));
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
+        // ===== Fields =====
         JTextField txtPatientId = new JTextField();
+        txtPatientId.setEditable(false); // 🔒 auto-filled only
+
         JTextField txtConsultationFee = new JTextField("0.00");
-        JTextField txtMedicationFee = new JTextField("0.00");
-        JTextField txtLabFee = new JTextField("0.00");
+
+        JTextField txtLabFee = new JTextField("200.00"); // 💰 constant lab fee
+        txtLabFee.setEditable(false);   // 🔒 lock it
+
         JTextField txtOtherFee = new JTextField("0.00");
-        JComboBox<String> cbStatus = new JComboBox<>(new String[]{"Paid", "Pending", "Partial"});
+
+        JComboBox<String> cbStatus = new JComboBox<>(new String[]{"Paid"});
+
         JTextField txtDate = new JTextField(LocalDate.now().toString());
         txtDate.setEditable(false);
 
@@ -2192,72 +2201,105 @@ public class receptionist extends staffUser {
 
         btnSave.setBackground(new Color(2, 48, 71));
         btnSave.setForeground(Color.WHITE);
+
         btnClear.setBackground(new Color(2, 48, 71));
         btnClear.setForeground(Color.WHITE);
+
+        // ===== Load pending lab request =====
+        String pendingPatientId = BillingDAO.getPendingPatientId();
+        if (pendingPatientId != null) {
+            txtPatientId.setText(pendingPatientId);
+        } else {
+            JOptionPane.showMessageDialog(panel,
+                    "No pending lab requests found.",
+                    "Info",
+                    JOptionPane.INFORMATION_MESSAGE);
+        }
 
         int row = 0;
         addField(panel, gbc, row++, "Patient ID:", txtPatientId);
         addField(panel, gbc, row++, "Consultation Fee:", txtConsultationFee);
-        addField(panel, gbc, row++, "Medication Fee:", txtMedicationFee);
         addField(panel, gbc, row++, "Lab Fee:", txtLabFee);
         addField(panel, gbc, row++, "Other Fee:", txtOtherFee);
         addField(panel, gbc, row++, "Status:", cbStatus);
         addField(panel, gbc, row++, "Date:", txtDate);
 
-        gbc.gridx = 0; gbc.gridy = row; panel.add(btnSave, gbc);
-        gbc.gridx = 1; panel.add(btnClear, gbc);
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        panel.add(btnSave, gbc);
+
+        gbc.gridx = 1;
+        panel.add(btnClear, gbc);
 
         // ===== Button Actions =====
         btnClear.addActionListener(e -> {
-            txtPatientId.setText("");
             txtConsultationFee.setText("0.00");
-            txtMedicationFee.setText("0.00");
-            txtLabFee.setText("0.00");
             txtOtherFee.setText("0.00");
             cbStatus.setSelectedIndex(0);
+
+            // Reload pending patient id
+            String pid = BillingDAO.getPendingPatientId();
+            txtPatientId.setText(pid != null ? pid : "");
         });
 
         btnSave.addActionListener(e -> {
+
             String patientId = txtPatientId.getText().trim();
             String status = cbStatus.getSelectedItem().toString();
             String date = txtDate.getText();
 
-            if(patientId.isEmpty()) {
-                JOptionPane.showMessageDialog(panel, "Patient ID is required", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            if (patientId.isEmpty()) {
+                JOptionPane.showMessageDialog(panel,
+                        "No pending lab request to bill.",
+                        "Validation Error",
+                        JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             // Parse fees
-            double consultationFee, medicationFee, labFee, otherFee;
+            double consultationFee, labFee, otherFee;
             try {
                 consultationFee = Double.parseDouble(txtConsultationFee.getText().trim());
-                medicationFee = Double.parseDouble(txtMedicationFee.getText().trim());
-                labFee = Double.parseDouble(txtLabFee.getText().trim());
+                labFee = Double.parseDouble(txtLabFee.getText().trim()); // always 200
                 otherFee = Double.parseDouble(txtOtherFee.getText().trim());
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(panel, "Invalid fee input", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(panel,
+                        "Invalid fee input",
+                        "Validation Error",
+                        JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
-            // Calculate total
-            double totalAmount = consultationFee + medicationFee + labFee + otherFee;
+            double totalAmount = consultationFee + labFee + otherFee;
 
-            // Optional: can pass null for paymentMethod and createdBy for now
-            boolean success = BillingDAO.addBill(patientId, LocalDate.parse(date),
-                    consultationFee, medicationFee, labFee, otherFee, totalAmount,
-                    status, null, null);
+            boolean success = BillingDAO.addBill(
+                    patientId,
+                    LocalDate.parse(date),
+                    consultationFee,
+                    labFee,
+                    otherFee,
+                    totalAmount,
+                    status,
+                    null,
+                    userFullName
+            );
 
-            if(success) {
+            if (success) {
                 JOptionPane.showMessageDialog(panel, "Bill added successfully!");
                 loadAllBills(tableModel);
+
                 cardLayout.show(contentPanel, "TABLE");
             } else {
-                JOptionPane.showMessageDialog(panel, "Failed to add bill", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(panel,
+                        "Failed to add bill",
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
             }
         });
 
         return panel;
     }
+
 
 
 
@@ -2292,5 +2334,4 @@ public class receptionist extends staffUser {
             new LoginPage().setVisible(true);
         }
     }
-
 }

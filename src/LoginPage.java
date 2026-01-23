@@ -55,7 +55,7 @@ public class LoginPage extends JFrame {
         JPanel namePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 10));
         namePanel.setOpaque(false);
         JLabel usernameLabel = new JLabel("Username:");
-        usernameLabel.setForeground(forceBlack);
+        usernameLabel.setForeground(navyBlue);
         JTextField uNameField = new JTextField(15);
         uNameField.setBackground(forceWhite);
         uNameField.setForeground(forceBlack);
@@ -67,7 +67,7 @@ public class LoginPage extends JFrame {
         JPanel passPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 9, 10));
         passPanel.setOpaque(false);
         JLabel passwordLabel = new JLabel("Password:");
-        passwordLabel.setForeground(forceBlack);
+        passwordLabel.setForeground(navyBlue);
         JPasswordField passField = new JPasswordField(15);
         passField.setBackground(forceWhite);
         passField.setForeground(forceBlack);
@@ -140,7 +140,7 @@ public class LoginPage extends JFrame {
                         this.dispose();
                         break;
                     case "ADMIN":
-                        new Admin(authId, fullName).showDashboard();
+                        new Admin(authId,fullName).showDashboard();
                         this.dispose();
                         break;
                     case "LABTECHNICIAN":
@@ -165,6 +165,10 @@ public class LoginPage extends JFrame {
         mainBackgroundPanel.add(centerPanel);
         add(mainBackgroundPanel);
         setLocationRelativeTo(null);
+//action for forgate button
+        forgotBtn.addActionListener(e->{
+            JOptionPane.showMessageDialog(this,"sorry you can not change authentications, please talk to admin!");
+        });
     }
 
     private void applyNavClickEffect(JButton btn, Color bg, Color fg) {
@@ -183,6 +187,7 @@ public class LoginPage extends JFrame {
             @Override public void mouseReleased(MouseEvent e) { btn.setBackground(bg.brighter()); }
         });
     }
+
 
     private void initializeDatabase() {
         DatabaseSetup.initializeDatabase();

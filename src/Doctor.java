@@ -760,7 +760,7 @@ public class Doctor extends staffUser {
 
                         String nextStatus = "";
                         // Matches your current DB casing/logic
-                        if (currentStatus.equalsIgnoreCase("SCHEDULED") || currentStatus.isEmpty()) {
+                        if (currentStatus.equalsIgnoreCase("SCHEDULED") ||currentStatus.equalsIgnoreCase("checked-in") || currentStatus.isEmpty()) {
                             nextStatus = "Confirmed";
                         } else if (currentStatus.equalsIgnoreCase("CONFIRMED")) {
                             nextStatus = "Completed";

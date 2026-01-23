@@ -78,7 +78,7 @@ public class PharmacyDAO {
         if (patientId.isEmpty()) return false;
 
         // Insert Bill
-        String billQuery = "INSERT INTO billing (patient_id, bill_date, other_fee, total_amount, payment_status, created_by) " +
+        String billQuery = "INSERT INTO billing (patient_id, bill_date, medication_fee, total_amount, payment_status, created_by) " +
                 "VALUES (?, CURDATE(), ?, ?, 'Pending', ?)";
         try (PreparedStatement pst2 = conn.prepareStatement(billQuery)) {
             pst2.setString(1, patientId);
