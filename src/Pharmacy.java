@@ -555,7 +555,8 @@ public class Pharmacy extends staffUser {
             if (selectedRow != -1) {
                 int prescriptionId = (int) model.getValueAt(selectedRow, 0);
                 try {
-                    if (dao.updatePrescriptionStatus(prescriptionId, "Done")) {
+                    String patientId=dao.getPatientId();
+                    if (dao.updatePrescriptionStatus(prescriptionId, "Done") && dao.updatePaymentStatus(patientId,"paid")) {
                         model.removeRow(selectedRow);
                         JOptionPane.showMessageDialog(mainFrame, "Status updated to Done.");
                     }

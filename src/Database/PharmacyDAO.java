@@ -60,7 +60,31 @@ public class PharmacyDAO {
             return pst.executeUpdate() > 0;
         }
     }
+    public String getPatientId() throws SQLException {
 
+        String query = "SELECT patient_id FROM prescriptions WHERE status = 'pending' LIMIT 1";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(query)) {
+
+            if (rs.next()) {
+                return rs.getString("patient_id"); // or rs.getString(1)
+            }
+        }
+
+        return null;
+    }
+
+    public boolean updatePaymentStatus(String id, String status) throws SQLException {
+        String query = "UPDATE billing SET payment_status = ? WHERE patient_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(query)) {
+            pst.setString(1, status);
+            pst.setString(2, id);
+            return pst.executeUpdate() > 0;
+        }
+    }
     // 3. Create Bill
     public boolean createPrescriptionBill(int prescriptionId, double fee, String creator) throws SQLException {
         Connection conn = DatabaseConnection.getConnection();
