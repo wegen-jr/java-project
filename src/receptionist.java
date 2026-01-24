@@ -1160,6 +1160,11 @@ public class receptionist extends staffUser {
         AbstractDocument doc = (AbstractDocument) txtId.getDocument();
         doc.setDocumentFilter(new PrefixFilter(prefix));
         txtId.setCaretPosition(prefix.length());
+        JTextField lastId=new JTextField();
+        String last=PatientDAO.getLastId();
+        lastId.setText(last);
+        lastId.setCaretPosition(last.length());
+        lastId.setEditable(false);
         JTextField txtName = new JTextField();
         JTextField txtMName = new JTextField();
         JTextField txtLName = new JTextField();
@@ -1190,6 +1195,7 @@ public class receptionist extends staffUser {
         btnClear.setForeground(Color.white);
 
         int row = 0;
+        addField(panel, gbc, row++, "Last ID",lastId);
         addField(panel, gbc, row++, "Patient ID:", txtId);
         addField(panel, gbc, row++, "First Name:", txtName);
         addField(panel, gbc, row++, "Middle Name:", txtMName);
@@ -1222,6 +1228,7 @@ public class receptionist extends staffUser {
             txtEmergency.setText("");
             cbGender.setSelectedIndex(0);
             cbBlood.setSelectedIndex(0);
+            lastId.setText("");
         });
         btnSave.addActionListener(e->{
             Date selectedDate=dateChooser.getDate();
@@ -1239,6 +1246,11 @@ public class receptionist extends staffUser {
             String emergencyContact = txtEmergency.getText();
             String bloodType = cbBlood.getSelectedItem().toString();
 
+            String enteredId=txtId.getText().trim();
+            if (PatientDAO.isPatientIdExists(enteredId)){
+                JOptionPane.showMessageDialog(null, "Patient ID already exists!");
+                return;
+            }
             if (patientId.isEmpty() || firstName.isEmpty() || middleName.isEmpty() || lastName.isEmpty() || dateOfBirth.isEmpty() ||email.isEmpty() || gender.isEmpty() || contact.isEmpty()) {
                 JOptionPane.showMessageDialog(panel, "Please fill in all required fields.", "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;

@@ -1,9 +1,9 @@
 package Database;
+import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.sql.*;
 import java.sql.Date;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -126,6 +126,46 @@ public class PatientDAO {
         }
         return null;
     }
+    public static String getLastId() {
+        String query = "SELECT patient_id FROM patients ORDER BY patient_id DESC LIMIT 1";
+        String lastId = null; // default if no record found
+
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pst = conn.prepareStatement(query);
+            ResultSet rs = pst.executeQuery();
+
+            if (rs.next()) {
+                lastId = rs.getString("patient_id");
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, e.getMessage());
+        }
+
+        return lastId;
+    }
+    public static boolean isPatientIdExists(String patientId) {
+        String query = "SELECT 1 FROM patients WHERE patient_id = ? LIMIT 1";
+
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pst = conn.prepareStatement(query);
+            pst.setString(1, patientId);
+
+            ResultSet rs = pst.executeQuery();
+
+            if (rs.next()) {
+                return true;   // ID exists
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, e.getMessage());
+        }
+
+        return false;  // ID does not exist
+    }
+
     // Update patient
     public static boolean updatePatient(Map<String, Object> patientData) {
         String sql = "UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, gender = ?, date_of_birth = ?, contact_number = ?, email = ?, address = ? WHERE patient_id = ?";
