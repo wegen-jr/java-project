@@ -10,7 +10,6 @@ public class Admin extends staffUser {
     private JPanel contentPanel;
     private CardLayout cardLayout;
     private JButton lastSelectedBtn = null;
-    private int authId;
 
     // Theme Colors
     private final Color NAVY_DARK = new Color(1, 22, 39);
@@ -57,7 +56,7 @@ public class Admin extends staffUser {
         addNavButton(navPanel, "Staff Accounts", "AUTH", "authentication", "id", false, true, true);
 
         // Patient Registry: All operations allowed
-        addNavButton(navPanel, "Patient Registry", "PATIENTS", "patients", "patient_id", true, true, false);
+        addNavButton(navPanel, "Patient Registry", "PATIENTS", "patients", "patient_id", false, true, false);
 
         // Doctor List: All operations allowed
         addNavButton(navPanel, "Doctor List", "DOCTORS", "doctors", "doctor_id", true, true, true);
@@ -449,8 +448,13 @@ public class Admin extends staffUser {
             });
             // ... call DAO ...
 
+            boolean success;
+            if(roles.get(table) != null) {
+                success = AdminDAO.createStaffWithAuth(authData, staffData, roles.get(table), table);
+            } else {
+                success = AdminDAO.createRecord(table, staffData);
+            }
 
-            boolean success = AdminDAO.createStaffWithAuth(authData, staffData, roles.get(table), table);
             if(!success) anyError = true;
 
             if (!anyError) {
@@ -533,6 +537,7 @@ public class Admin extends staffUser {
 
                 if (!newValue.equals(oldValueStr)) {
                     wasChanged = true;
+                    System.out.println("col name: " + colName);
                     boolean success = AdminDAO.updateRecord(table, pk, pkValue, colName, newValue);
                     if (!success) anyError = true;
                 }

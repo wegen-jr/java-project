@@ -155,7 +155,7 @@ public class AdminDAO {
         }
     }
 
-    public static boolean createRecord(String tableName, Map<String, Object> data) {
+    public static boolean createRecord(String tableName, Map<String, String> data) {
         if (data == null || data.isEmpty()) return false;
 
         // Use StringJoiner to build the comma-separated lists for columns and placeholders
