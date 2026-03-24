@@ -23,15 +23,15 @@ public class PatientDAO {
 
             pstmt.setString(1, patientId);
             pstmt.setString(2, firstName);
-            pstmt.setString(2, middleName);
-            pstmt.setString(2, lastName);
-            pstmt.setDate(3, Date.valueOf(dateOfBirth));
-            pstmt.setString(4, gender);
-            pstmt.setString(5, contact);
-            pstmt.setString(6, email);
-            pstmt.setString(7, address);
-            pstmt.setString(8, emergencyContact);
-            pstmt.setString(9, bloodType);
+            pstmt.setString(3, middleName);
+            pstmt.setString(4, lastName);
+            pstmt.setDate(5, Date.valueOf(dateOfBirth));
+            pstmt.setString(6, gender);
+            pstmt.setString(7, contact);
+            pstmt.setString(8, email);
+            pstmt.setString(9, address);
+            pstmt.setString(10, emergencyContact);
+            pstmt.setString(11, bloodType);
 
             return pstmt.executeUpdate() > 0;
 
